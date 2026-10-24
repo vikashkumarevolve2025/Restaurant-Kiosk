@@ -198,6 +198,15 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
 .rnote { color: var(--muted); font-size: 0.85rem; margin: 6px 0 0; }
 .ract { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .ract .cta { min-height: 44px; padding: 0 18px; flex: 1 1 120px; }
+/* Pay by UPI box under the slip: the QR always on white so every UPI app can read it. */
+.pay { max-width: 360px; margin: 18px auto 0; background: var(--surface); border: 1.5px solid var(--action); border-radius: 14px; padding: 16px; text-align: center; }
+.paytop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; text-align: left; }
+.paytop b { font-family: var(--font-display); font-size: 1.3rem; }
+.paytop strong { font-family: var(--font-display); font-size: 1.5rem; color: var(--action); margin-left: 6px; }
+.pay img { display: block; width: min(240px, 80%); aspect-ratio: 1; object-fit: contain; margin: 12px auto; background: #fff; padding: 8px; border-radius: 10px; }
+.payhow { color: var(--muted); font-size: 0.88rem; margin: 0; }
+.payid { font-family: var(--font-mono); font-weight: 600; margin: 8px 0 0; }
+@media print { .pay { display: none; } }
 .toast { color: var(--action); font-weight: 700; min-height: 1.4em; text-align: center; margin: 12px 0 0; }
 @media print {
   body * { visibility: hidden; }
@@ -273,6 +282,12 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
       <h2>Order placed</h2>
       <p class="hint">Show this slip at the counter when your token is called.</p>
       <div class="slip" id="slip"></div>
+      <section class="pay" id="payBox" hidden aria-label="Pay by UPI">
+        <div class="paytop"><b>Pay by UPI</b><span>Amount to pay <strong id="payAmount"></strong></span></div>
+        <img id="payQr" alt="Shop UPI QR code">
+        <p class="payhow">Scan with Google Pay, PhonePe, Paytm or any UPI app, enter the amount above and pay. Show the payment confirmation at the counter. You can also pay by cash or card at the counter.</p>
+        <p class="payid" id="payUpi"></p>
+      </section>
       <p class="toast" id="toast" aria-live="polite"></p>
       <div class="row" style="max-width:360px;margin-inline:auto">
         <button class="cta ghost" type="button" id="printSlip">Print slip</button>
@@ -324,7 +339,7 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
   }
   function loadMenu() {
     return api("/api/menu").then(function (d) {
-      MENU = d.items.map(function (m) { return { id: m.id, cat: m.category, name: m.name, desc: m.description, price: m.price, veg: m.veg, spice: m.spice, hue: m.hue, ok: m.available, image: m.image }; });
+      MENU = d.items.map(function (m) { return { id: m.id, cat: m.category, name: m.name, desc: m.description, price: m.price, veg: m.veg, spice: m.spice, hue: m.hue, ok: m.available, image: m.image, noGst: m.no_gst }; });
       CATS = d.categories;
       SHOP.name = d.shop.name; $("brandName").textContent = d.shop.name; document.title = d.shop.name + " self order"; SHOP.gst = d.shop.gst_percent / 100; SHOP.tables = d.shop.tables;
       if (CATS.indexOf(cat) < 0) cat = CATS[0];
@@ -336,10 +351,11 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]; }); }
 
   function totals() {
-    var sub = 0, n = 0;
-    MENU.forEach(function (m) { var q = cart[m.id] || 0; sub += q * m.price; n += q; });
-    var tax = Math.round(sub * SHOP.gst);
-    return { sub: sub, tax: tax, total: sub + tax, n: n };
+    // GST only on dishes; packaged items sold at MRP (water, bottled drinks) carry none. Same rounding as the server.
+    var sub = 0, taxable = 0, n = 0, pct = Math.round(SHOP.gst * 100);
+    MENU.forEach(function (m) { var q = cart[m.id] || 0; sub += q * m.price; n += q; if (!m.noGst) taxable += q * m.price; });
+    var tax = Math.floor((taxable * pct + 50) / 100);
+    return { sub: sub, tax: tax, total: sub + tax, n: n, exempt: sub - taxable };
   }
 
   function renderTabs() {
@@ -396,13 +412,14 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
   }
 
   function sumHtml(t) {
-    return '<div><span>Subtotal</span><span>' + inr(t.sub) + '</span></div><div><span>GST ' + (SHOP.gst * 100) + '%</span><span>' + inr(t.tax) + '</span></div><div class="grand"><span>Total</span><span>' + inr(t.total) + '</span></div>';
+    return '<div><span>Subtotal</span><span>' + inr(t.sub) + '</span></div><div><span>GST ' + (SHOP.gst * 100) + '%' +
+      (t.exempt ? ' <small class="each">(not on packaged items)</small>' : '') + '</span><span>' + inr(t.tax) + '</span></div><div class="grand"><span>Total</span><span>' + inr(t.total) + '</span></div>';
   }
   function renderCart() {
     var t = totals();
     if (!t.n) { closeSheet(); return; }
     $("cartLines").innerHTML = MENU.filter(function (m) { return cart[m.id]; }).map(function (m) {
-      return '<div class="line"><div><div class="nm">' + esc(m.name) + '</div><div class="each">' + inr(m.price) + ' each</div></div><div class="amt">' + inr(m.price * cart[m.id]) + '</div>' +
+      return '<div class="line"><div><div class="nm">' + esc(m.name) + '</div><div class="each">' + inr(m.price) + ' each' + (m.noGst ? ' · No GST (MRP)' : '') + '</div></div><div class="amt">' + inr(m.price * cart[m.id]) + '</div>' +
         '<span class="step"><button type="button" data-d="-1" data-id="' + m.id + '" aria-label="Remove one ' + esc(m.name) + '">−</button><output>' + cart[m.id] + '</output><button type="button" data-d="1" data-id="' + m.id + '" aria-label="Add one ' + esc(m.name) + '">+</button></span><span></span></div>';
     }).join("");
     $("cartSum").innerHTML = sumHtml(t);
@@ -463,8 +480,11 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
     var W = 34, rule = new Array(W + 1).join("-");
     function lr(a, b) { return a + new Array(Math.max(1, W - a.length - b.length + 1)).join(" ") + b; }
     var L = [o.shop_name || SHOP.name, rule, "TOKEN #" + o.token + "  " + o.type_label, o.created_label, "Name:  " + o.name, "Phone: +91 " + o.phone_masked, rule];
-    o.items.forEach(function (i) { L.push(lr(i.qty + "x " + i.name, inr(i.line))); });
-    L.push(rule, lr("Subtotal", inr(o.subtotal)), lr("GST " + o.gst_percent + "%", inr(o.gst)), lr("TOTAL", inr(o.total)), rule, "Thank you, " + o.name + "!");
+    var mrp = o.items.some(function (i) { return i.no_gst; });
+    o.items.forEach(function (i) { L.push(lr(i.qty + "x " + i.name + (i.no_gst ? " *" : ""), inr(i.line))); });
+    L.push(rule, lr("Subtotal", inr(o.subtotal)), lr("GST " + o.gst_percent + "%", inr(o.gst)), lr("TOTAL", inr(o.total)), rule);
+    if (mrp) L.push("* Packaged item at MRP, no GST");
+    L.push("Thank you, " + o.name + "!");
     return L.join("\n");
   }
   function renderSlip(o) {
@@ -472,9 +492,22 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
       '<div class="c shop">' + esc(SHOP.name) + '</div><hr>' +
       '<div class="c">TOKEN</div><div class="c token">#' + o.token + '</div><div class="c big">' + esc(o.type_label) + '</div><hr>' +
       '<div class="r"><span>' + esc(o.created_label) + '</span></div><div class="r"><span>Name</span><span class="nm2">' + esc(o.name) + '</span></div><div class="r"><span>Phone</span><span>+91 ' + esc(o.phone_masked) + '</span></div><hr>' +
-      o.items.map(function (i) { return '<div class="it"><span>' + i.qty + 'x</span><span>' + esc(i.name) + '</span><span>' + inr(i.line) + '</span></div>'; }).join("") + '<hr>' +
+      o.items.map(function (i) { return '<div class="it"><span>' + i.qty + 'x</span><span>' + esc(i.name) + (i.no_gst ? ' *' : '') + '</span><span>' + inr(i.line) + '</span></div>'; }).join("") + '<hr>' +
       '<div class="r"><span>Subtotal</span><span>' + inr(o.subtotal) + '</span></div><div class="r"><span>GST ' + o.gst_percent + '%</span><span>' + inr(o.gst) + '</span></div><div class="r big"><span>TOTAL</span><span>' + inr(o.total) + '</span></div><hr>' +
+      (o.items.some(function (i) { return i.no_gst; }) ? '<div class="c" style="font-size:.78rem">* Packaged item at MRP, no GST</div>' : '') +
       '<div class="c">Thank you, ' + esc(o.name) + '!</div>';
+    renderPay(o.total);
+  }
+  // Pay by UPI: the shop's own QR (uploaded in admin) with the exact amount to enter. Cash at the counter stays possible.
+  var PAY = { qr: null, upi_id: "" };
+  function loadPay() { return api("/api/payment").then(function (p) { PAY = p; }).catch(function () {}); }
+  function renderPay(amount) {
+    var box = $("payBox");
+    box.hidden = !PAY.qr;
+    if (!PAY.qr) return;
+    $("payAmount").textContent = inr(amount);
+    $("payQr").src = PAY.qr;
+    $("payUpi").textContent = PAY.upi_id ? "UPI ID: " + PAY.upi_id : "";
   }
   // Running table bill: only for guests who came in through a table QR code (the counter kiosk is shared).
   // The phone remembers the guest for as long as that bill is open, so reloading or rescanning keeps their session.
@@ -515,7 +548,7 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
       if (!$("vBill").hidden) { $("billRounds").innerHTML = '<p class="welcome">This table has been paid and closed. Thank you!</p>'; $("billSum").innerHTML = ""; }
       return;
     }
-    b.textContent = "Your order " + inr(bill.total);
+    b.textContent = "Your order";
     $("billTitle").textContent = "Table " + bill.table + " order";
     if (editing && !bill.rounds.some(function (r) { return r.id === editing.id && editable(r); })) editing = null;
     $("billRounds").innerHTML = bill.rounds.map(function (r) {
@@ -540,7 +573,9 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
       return '<section class="round' + (mine(r) ? " mine" : "") + '" data-rid="' + r.id + '"><div class="rhead"><b>Order #' + r.token + (mine(r) ? "" : " (table)") + '</b>' +
         '<span class="st ' + r.status + '">' + (STATUS[r.status] || r.status) + '</span></div>' + lines + '</section>';
     }).join("") || '<p class="hint">Nothing ordered yet.</p>';
-    $("billSum").innerHTML = sumHtml({ sub: bill.subtotal, tax: bill.gst, total: bill.total });
+    // Guests see each dish's price but not the bill total or GST; staff give the bill when they pay.
+    var dishes = bill.items.reduce(function (n, i) { return n + i.qty; }, 0);
+    $("billSum").innerHTML = bill.rounds.length ? '<p class="hint">' + dishes + (dishes === 1 ? " dish" : " dishes") + " ordered so far. Your bill will be brought to the table when you finish.</p>" : "";
     var asked = bill.status === "bill_requested";
     $("billDone").hidden = !asked;
     $("finishBtn").hidden = asked;
@@ -688,6 +723,7 @@ input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1
 
   $("grid").innerHTML = '<p class="hint">Loading menu...</p>';
   function boot() {
+    loadPay();
     loadMenu().then(function () { parseHash(); syncType(); renderHero(); renderTabs(); renderGrid(); renderBar(); loadBill(); }).catch(function () {
       $("grid").innerHTML = '<p class="err">Cannot load the menu. <button class="linkbtn" id="retry" type="button">Try again</button></p>';
       $("retry").addEventListener("click", boot);

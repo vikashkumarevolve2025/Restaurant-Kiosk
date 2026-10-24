@@ -6,7 +6,7 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from .menu_data import CATEGORIES, ITEMS
+from .menu_data import CATEGORIES, ITEMS, PACKAGED
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS menu_items (
@@ -107,6 +107,15 @@ def init_db(path: str) -> None:
             conn.execute("ALTER TABLE menu_items ADD COLUMN image_credit TEXT")
         if conn.execute("PRAGMA user_version").fetchone()[0] < 4:
             conn.execute("PRAGMA user_version = 4")
+        # v5: packaged items sold at MRP carry no GST on the bill (menu flag, copied onto each order line),
+        # and a small key/value table for shop-wide things such as the UPI payment QR.
+        if "no_gst" not in {r["name"] for r in conn.execute("PRAGMA table_info(menu_items)")}:
+            conn.execute("ALTER TABLE menu_items ADD COLUMN no_gst INTEGER NOT NULL DEFAULT 0")
+        if "no_gst" not in {r["name"] for r in conn.execute("PRAGMA table_info(order_items)")}:
+            conn.execute("ALTER TABLE order_items ADD COLUMN no_gst INTEGER NOT NULL DEFAULT 0")
+        conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        if conn.execute("PRAGMA user_version").fetchone()[0] < 5:
+            conn.execute("PRAGMA user_version = 5")
         if conn.execute("SELECT COUNT(*) FROM menu_items").fetchone()[0] == 0:
             order = {c: i for i, c in enumerate(CATEGORIES)}
             rows = [
@@ -118,6 +127,7 @@ def init_db(path: str) -> None:
                 "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
+            conn.executemany("UPDATE menu_items SET no_gst = 1 WHERE id = ?", [(i,) for i in PACKAGED])
             _seed_sample_photos(conn, Path(path).parent / "images")
     finally:
         conn.close()

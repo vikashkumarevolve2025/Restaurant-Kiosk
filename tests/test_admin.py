@@ -133,3 +133,23 @@ def test_fresh_sample_menu_comes_with_photos(client):
     assert items["b1"]["image"] == "/images/b1-sample.jpg" and "Wikimedia Commons" in items["b1"]["image_credit"]
     assert client.get("/images/b1-sample.jpg").content.startswith(b"\xff\xd8\xff")
     assert sum(1 for i in items.values() if i["image"]) == 24
+
+
+def test_owner_marks_item_no_gst(client):
+    new = client.post("/api/admin/menu", json={"name": "Packaged Water", "category": "Sides & Drinks", "price": 20, "no_gst": True}, headers=OWNER).json()
+    assert new["no_gst"] is True
+    assert client.patch(f"/api/admin/menu/{new['id']}", json={"no_gst": False}, headers=OWNER).json()["no_gst"] is False
+
+
+def test_upi_payment_qr(client):
+    assert client.get("/api/payment").json() == {"qr": None, "upi_id": ""}
+    assert client.put("/api/admin/payment", json={"qr": PNG}, headers=KITCHEN).status_code == 401          # owner only
+    p = client.put("/api/admin/payment", json={"qr": PNG, "upi_id": "karamkitchen@okaxis"}, headers=OWNER).json()
+    assert p["qr"].startswith("/images/payqr-") and p["upi_id"] == "karamkitchen@okaxis"
+    assert client.get("/api/payment").json() == p and client.get(p["qr"]).status_code == 200
+    assert client.put("/api/admin/payment", json={"upi_id": "not an id"}, headers=OWNER).status_code == 422
+    assert client.put("/api/admin/payment", json={"qr": "data:text/html;base64,PGgxPg=="}, headers=OWNER).status_code == 422
+    # Changing only the UPI ID keeps the QR; removing the QR deletes its file and keeps the ID.
+    assert client.put("/api/admin/payment", json={"upi_id": "shop@ybl"}, headers=OWNER).json()["qr"] == p["qr"]
+    gone = client.delete("/api/admin/payment/qr", headers=OWNER).json()
+    assert gone == {"qr": None, "upi_id": "shop@ybl"} and client.get(p["qr"]).status_code == 404

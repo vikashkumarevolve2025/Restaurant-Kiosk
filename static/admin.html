@@ -74,6 +74,7 @@ label { display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 4px
 .item.off .nm { text-decoration: line-through; color: var(--muted); }
 .thumb { float: left; width: 64px; height: 48px; border-radius: 8px; object-fit: cover; margin: 2px 12px 2px 0; background: var(--line); }
 .thumb.none { display: grid; place-items: center; font-size: 0.65rem; color: var(--muted); text-align: center; line-height: 1.1; }
+.item .tag { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .item .credit { font-size: 0.75rem; overflow-wrap: anywhere; }
 .item > div { min-width: 0; }
 .dot { width: 16px; height: 16px; border: 2px solid var(--veg); border-radius: 3px; display: grid; place-items: center; }
@@ -145,6 +146,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
         <div><label for="iHue">Tile colour</label><div class="inline"><span class="swatch" id="swatch"></span><input id="iHue" type="range" min="0" max="360" value="20"></div></div>
         <div class="inline"><input id="iVeg" type="checkbox"><label for="iVeg" style="margin:0">Vegetarian</label></div>
         <div class="inline"><input id="iAvail" type="checkbox" checked><label for="iAvail" style="margin:0">Available to order</label></div>
+        <div class="inline"><input id="iNoGst" type="checkbox"><label for="iNoGst" style="margin:0">No GST: packaged item sold at MRP (water, bottled drinks)</label></div>
         <div class="wide inline"><button class="btn go" type="submit" id="saveItem">Save item</button><button class="btn" type="button" id="cancelItem">Cancel</button></div>
       </form>
       <p class="err" id="formErr" role="alert"></p>
@@ -230,6 +232,18 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
           <p style="font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere;font-weight:700" id="guestInfo"></p>
           <p class="muted" id="guestHint"></p>
           <a href="/tables" class="btn" style="display:inline-flex;align-items:center;text-decoration:none">Print table QR codes</a></div>
+        <div class="panel"><h2>UPI payment</h2>
+          <p class="muted" style="margin-top:0">Upload your shop's UPI QR code (a screenshot from your bank or UPI app is fine). After ordering at the kiosk, guests see it with the amount to pay.</p>
+          <div id="payPreview" class="muted" style="margin:8px 0">No QR code yet.</div>
+          <label for="upiId">UPI ID (optional, shown under the QR)</label>
+          <input id="upiId" placeholder="shopname@okaxis" autocomplete="off" maxlength="130">
+          <input type="file" id="payFile" accept="image/jpeg,image/png,image/webp" hidden>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn go" id="payUpload" type="button">Upload QR code</button>
+            <button class="btn" id="paySaveId" type="button">Save UPI ID</button>
+            <button class="btn danger" id="payRemove" type="button" hidden>Remove QR</button>
+          </div>
+          <p id="payMsg" role="status"></p></div>
         <div class="panel"><h2>Printer test</h2>
           <p class="muted" style="margin-top:0">Sends a sample slip to the printer, so you can check paper and layout without placing an order. Save your printer settings first.</p>
           <button class="btn go" id="printTest" type="button">Print test slip</button>
@@ -292,7 +306,31 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
     tab = b.dataset.tab; say("");
     Array.prototype.forEach.call($("tabs").children, function (x) { x.setAttribute("aria-selected", String(x === b)); });
     ["menu", "sales", "orders", "customers", "tools"].forEach(function (t) { $("tab-" + t).hidden = t !== tab; });
-    if (!loaded[tab]) { loaded[tab] = true; if (tab === "sales") runSales(); if (tab === "orders") runOrders(); if (tab === "customers") runCustomers(); if (tab === "tools") loadPrinters(); }
+    if (!loaded[tab]) { loaded[tab] = true; if (tab === "sales") runSales(); if (tab === "orders") runOrders(); if (tab === "customers") runCustomers(); if (tab === "tools") { loadPrinters(); loadPayment(); } }
+  });
+
+  /* ---------- UPI payment QR ---------- */
+  function payMsg(t, good) { var m = $("payMsg"); m.textContent = t || ""; m.className = good ? "ok" : "err"; }
+  function showPayment(p) {
+    $("payPreview").innerHTML = p.qr ? '<img src="' + esc(p.qr) + '" alt="UPI QR code" style="width:180px;height:180px;object-fit:contain;background:#fff;border-radius:10px;border:1px solid var(--line);padding:6px">' : "No QR code yet.";
+    $("upiId").value = p.upi_id || ""; $("payRemove").hidden = !p.qr; $("payUpload").textContent = p.qr ? "Replace QR code" : "Upload QR code";
+  }
+  function loadPayment() { fetch("/api/payment").then(function (r) { return r.json(); }).then(showPayment).catch(function () {}); }
+  function savePayment(body, done) {
+    return api("/api/admin/payment", { method: "PUT", body: JSON.stringify(body) }).then(function (p) { showPayment(p); payMsg(done, true); })
+      .catch(function (err) { if (err.status === 401) lock(); else payMsg(err.message); });
+  }
+  $("payUpload").addEventListener("click", function () { $("payFile").value = ""; $("payFile").click(); });
+  $("payFile").addEventListener("change", function () {
+    var file = this.files && this.files[0]; if (!file) return;
+    payMsg("Uploading...", true);
+    // QR codes must stay sharp: keep up to 1000 px and save as PNG rather than a blurry JPEG.
+    shrink(file, "image/png").then(function (data) { return savePayment({ qr: data }, "QR code saved. Guests see it after ordering at the kiosk."); })
+      .catch(function (err) { payMsg(err.message); });
+  });
+  $("paySaveId").addEventListener("click", function () { savePayment({ upi_id: $("upiId").value }, "UPI ID saved."); });
+  $("payRemove").addEventListener("click", function () {
+    api("/api/admin/payment/qr", { method: "DELETE" }).then(function (p) { showPayment(p); payMsg("QR code removed.", true); }).catch(function (err) { payMsg(err.message); });
   });
 
   /* ---------- menu ---------- */
@@ -310,7 +348,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
           '<div>' + (i.image ? '<img class="thumb" src="' + esc(i.image) + '" alt="" loading="lazy">' : '<span class="thumb none">No photo</span>') +
           '<div class="nm">' + esc(i.name) + '</div><div class="sub">' + sub + '</div>' +
           (i.image_credit ? '<div class="sub credit">' + esc(i.image_credit) + '</div>' : '') + '</div>' +
-          '<span class="price">' + inr(i.price) + '</span>' +
+          '<span class="price">' + inr(i.price) + (i.no_gst ? '<br><span class="tag">No GST</span>' : '') + '</span>' +
           '<div class="acts"><label class="inline" style="margin:0;font-weight:500"><input type="checkbox" data-act="avail"' + (i.available ? " checked" : "") + ' style="width:22px;height:22px"> Available</label>' +
           '<button class="btn sm" data-act="up" type="button" aria-label="Move up"' + (n === 0 ? " disabled" : "") + '>Up</button>' +
           '<button class="btn sm" data-act="down" type="button" aria-label="Move down"' + (n === list.length - 1 ? " disabled" : "") + '>Down</button>' +
@@ -326,7 +364,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
     $("formTitle").textContent = it ? "Edit item" : "Add item";
     $("iName").value = it ? it.name : ""; $("iCat").value = it ? it.category : ""; $("iPrice").value = it ? it.price : "";
     $("iDesc").value = it ? it.description : ""; $("iSpice").value = it ? it.spice : 0; $("iHue").value = it ? it.hue : 20;
-    $("iVeg").checked = it ? it.veg : false; $("iAvail").checked = it ? it.available : true;
+    $("iVeg").checked = it ? it.veg : false; $("iAvail").checked = it ? it.available : true; $("iNoGst").checked = it ? it.no_gst : false;
     $("formErr").textContent = ""; $("formPanel").hidden = false; setSwatch(); $("iName").focus();
     $("formPanel").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -339,7 +377,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
     var price = $("iPrice").value.trim();
     if (!/^\d+$/.test(price)) { $("formErr").textContent = "Enter the price as a whole number of rupees."; return; }
     var body = { name: $("iName").value, category: $("iCat").value, description: $("iDesc").value, price: parseInt(price, 10),
-      veg: $("iVeg").checked, spice: parseInt($("iSpice").value, 10), hue: parseInt($("iHue").value, 10), available: $("iAvail").checked };
+      veg: $("iVeg").checked, spice: parseInt($("iSpice").value, 10), hue: parseInt($("iHue").value, 10), available: $("iAvail").checked, no_gst: $("iNoGst").checked };
     var btn = $("saveItem"); btn.disabled = true;
     api(editing ? "/api/admin/menu/" + encodeURIComponent(editing) : "/api/admin/menu", { method: editing ? "PATCH" : "POST", body: JSON.stringify(body) })
       .then(function () { $("formPanel").hidden = true; say("Saved.", true); return loadMenu(); })
@@ -371,7 +409,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
   });
   // Dish photos: shrink in the browser (longest side 1000 px, JPEG) so even a big phone photo uploads quickly.
   var photoFor = null;
-  function shrink(file) {
+  function shrink(file, type) {
     return new Promise(function (resolve, reject) {
       if (!/^image\//.test(file.type)) { reject(new Error("Choose a photo (JPEG, PNG or WebP).")); return; }
       var url = URL.createObjectURL(file), img = new Image();
@@ -379,7 +417,7 @@ dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: any
         var k = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
         c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url); resolve(c.toDataURL("image/jpeg", 0.85));
+        URL.revokeObjectURL(url); resolve(type === "image/png" ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.85));
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("That file could not be opened as a photo.")); };
       img.src = url;

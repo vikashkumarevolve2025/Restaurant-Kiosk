@@ -78,6 +78,7 @@ class MenuItemIn(BaseModel):
     spice: int = Field(default=0, ge=0, le=3)
     hue: Optional[int] = Field(default=None, ge=0, le=360)
     available: bool = True
+    no_gst: bool = False          # packaged item sold at MRP: no GST added on the bill
 
     @field_validator("name")
     @classmethod
@@ -104,6 +105,7 @@ class MenuItemPatch(BaseModel):
     spice: Optional[int] = Field(default=None, ge=0, le=3)
     hue: Optional[int] = Field(default=None, ge=0, le=360)
     available: Optional[bool] = None
+    no_gst: Optional[bool] = None
 
     @field_validator("name")
     @classmethod
@@ -125,6 +127,12 @@ class ImageIn(BaseModel):
     """A dish photo as a data URL (the admin screen shrinks it first), and who took it."""
     data: str = Field(min_length=30, max_length=3_000_000)
     credit: str = Field(default="", max_length=300)
+
+
+class PaymentIn(BaseModel):
+    """The shop's UPI QR as a data URL (optional) and its UPI ID (optional, empty clears it)."""
+    qr: Optional[str] = Field(default=None, max_length=3_000_000)
+    upi_id: Optional[str] = Field(default=None, max_length=130)
 
 
 class MoveIn(BaseModel):

@@ -135,9 +135,12 @@ def test_table_orders_share_one_bill_until_closed(client):
 
     bill = client.get("/api/tables/2/bill").json()["bill"]
     assert [r["token"] for r in bill["rounds"]] == [1, 2]
-    assert (bill["subtotal"], bill["gst"], bill["total"]) == (880, 45, 925)
-    assert {i["id"]: i["qty"] for i in bill["items"]} == {"b1": 2, "d2": 4}                    # rounds combined
+    assert {i["id"]: (i["qty"], i["line"]) for i in bill["items"]} == {"b1": (2, 680), "d2": (4, 200)}   # rounds combined, item prices shown
     assert "guests" not in bill                                                                  # guests see no names
+    assert not {"subtotal", "gst", "gst_percent", "total"} & set(bill)                         # nor the bill total or GST
+    assert all("total" not in r for r in bill["rounds"])
+    staff_bill = client.get("/api/bills", headers=PIN).json()["bills"][0]                          # staff do see them
+    assert (staff_bill["subtotal"], staff_bill["gst"], staff_bill["total"]) == (880, 45, 925)
 
     staff = client.get("/api/bills", headers=PIN).json()["bills"]
     assert [b["table"] for b in staff] == [2, 3] and staff[0]["guests"] == ["Asha Rao", "Ravi K"]
@@ -157,8 +160,8 @@ def test_cancelled_order_leaves_the_bill(client):
     oid = client.post("/api/orders", json=order()).json()["id"]
     client.post("/api/orders", json=order(items=[{"id": "d2", "qty": 1}]))
     client.patch(f"/api/orders/{oid}/status", json={"status": "cancelled"}, headers=PIN)
-    bill = client.get("/api/tables/2/bill").json()["bill"]
-    assert len(bill["rounds"]) == 1 and bill["total"] == 53
+    assert len(client.get("/api/tables/2/bill").json()["bill"]["rounds"]) == 1
+    assert client.get("/api/bills", headers=PIN).json()["bills"][0]["total"] == 53
 
 
 def test_bill_errors_and_print(client):
@@ -185,7 +188,7 @@ def test_guest_edits_order_until_kitchen_starts(client):
     assert {i["id"]: i["qty"] for i in o["items"]} == {"b1": 1, "s1": 1} and o["subtotal"] == 340 + 370
     assert o["token"] == placed["token"] and o["updated_at"]
     assert any("UPDATED ORDER" in p.read_text() for p in __import__("pathlib").Path(client.settings.print_dir).glob("*-updated-*.txt"))
-    assert client.get("/api/tables/2/bill").json()["bill"]["total"] == o["total"]
+    assert client.get("/api/bills", headers=PIN).json()["bills"][0]["total"] == o["total"]
 
     # Wrong key, or someone else's order: not found.
     assert client.put(f"/api/orders/{oid}/items", json={"edit_key": "x" * 20, "items": []}).status_code == 404
@@ -236,3 +239,24 @@ def test_pages(client):
 def test_requires_pin_setting(tmp_path):
     with pytest.raises(RuntimeError):
         create_app(Settings(db_path=str(tmp_path / "x.db"), staff_pin=""))
+
+
+def test_packaged_items_carry_no_gst(client):
+    # 2 x biryani 680 (taxed) + 3 x soft drink 150 (packaged, MRP). GST 5% of 680 = 34.
+    o = client.post("/api/orders", json=order(items=[{"id": "b1", "qty": 2}, {"id": "d5", "qty": 3}])).json()
+    assert (o["subtotal"], o["gst"], o["total"]) == (830, 34, 864)
+    assert {i["id"]: i["no_gst"] for i in o["items"]} == {"b1": False, "d5": True}
+    slip = next(__import__("pathlib").Path(client.settings.print_dir).glob("*.txt")).read_text()
+    assert "Soft Drink *" in slip and "no GST" in slip and "Rs 864" in slip
+
+    # Editing keeps the rule; a drinks-only order has no GST at all.
+    e = client.put(f"/api/orders/{o['id']}/items", json={"edit_key": o["edit_key"], "items": [{"id": "d5", "qty": 2}]}).json()
+    assert (e["subtotal"], e["gst"], e["total"]) == (100, 0, 100)
+    bill = client.get("/api/bills", headers=PIN).json()["bills"][0]
+    assert bill["gst"] == 0 and bill["items"][0]["no_gst"] is True
+    assert client.post("/api/tables/2/bill/print", headers=PIN).status_code == 200
+
+
+def test_menu_marks_packaged_items(client):
+    items = {i["id"]: i for i in client.get("/api/menu").json()["items"]}
+    assert items["d5"]["no_gst"] is True and items["b1"]["no_gst"] is False

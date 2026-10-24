@@ -69,7 +69,8 @@ def render_lines(order: dict, s: Settings) -> list[tuple[str, str]]:
     for it in order["items"]:
         amount = inr(it["line"])
         name_w = max(8, w - len(amount) - 5)
-        wrapped = textwrap.wrap(it["name"], name_w) or [it["name"]]
+        label = it["name"] + (" *" if it.get("no_gst") else "")   # packaged item at MRP
+        wrapped = textwrap.wrap(label, name_w) or [label]
         out.append(("n", _lr(f"{it['qty']:>2}x {wrapped[0]}", amount, w)))
         out.extend(("n", "    " + extra) for extra in wrapped[1:])
     out += [
@@ -78,8 +79,9 @@ def render_lines(order: dict, s: Settings) -> list[tuple[str, str]]:
         ("n", _lr(f"GST {order['gst_percent']}%", inr(order["gst"]), w)),
         ("b", _lr("TOTAL", inr(order["total"]), w)),
         ("n", rule),
-        ("c", f"Thank you, {order['name'].split(' ')[0]}!"),
     ]
+    out += _mrp_note(order["items"], w)
+    out.append(("c", f"Thank you, {order['name'].split(' ')[0]}!"))
     return out
 
 
@@ -97,7 +99,8 @@ def render_bill_lines(bill: dict, s: Settings, when: str) -> list[tuple[str, str
     for it in bill["items"]:
         amount = inr(it["line"])
         name_w = max(8, w - len(amount) - 5)
-        wrapped = textwrap.wrap(it["name"], name_w) or [it["name"]]
+        label = it["name"] + (" *" if it.get("no_gst") else "")   # packaged item at MRP
+        wrapped = textwrap.wrap(label, name_w) or [label]
         out.append(("n", _lr(f"{it['qty']:>2}x {wrapped[0]}", amount, w)))
         out.extend(("n", "    " + extra) for extra in wrapped[1:])
     out += [
@@ -106,8 +109,9 @@ def render_bill_lines(bill: dict, s: Settings, when: str) -> list[tuple[str, str
         ("n", _lr(f"GST {bill['gst_percent']}%", inr(bill["gst"]), w)),
         ("b", _lr("TOTAL", inr(bill["total"]), w)),
         ("n", rule),
-        ("c", "Thank you! Please visit again."),
     ]
+    out += _mrp_note(bill["items"], w)
+    out.append(("c", "Thank you! Please visit again."))
     return out
 
 
@@ -116,6 +120,12 @@ def _as_text(lines: list[tuple[str, str]], s: Settings) -> str:
     for style, text in lines:
         out.append(text.center(s.cols).rstrip() if ("c" in style or style == "T") else text)
     return "\n".join(out) + "\n"
+
+
+def _mrp_note(items: list[dict], w: int) -> list[tuple[str, str]]:
+    if not any(i.get("no_gst") for i in items):
+        return []
+    return [("n", line) for line in textwrap.wrap("* Packaged item at MRP, no GST", w)]
 
 
 def render_slip(order: dict, s: Settings) -> str:

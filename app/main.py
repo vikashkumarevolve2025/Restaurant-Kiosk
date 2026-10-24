@@ -21,7 +21,7 @@ from . import orders as svc
 from . import runtime_config as rc
 from .config import BASE_DIR, Settings
 from .db import connect, init_db
-from .models import AvailabilityIn, ImageIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
+from .models import AvailabilityIn, ImageIn, PaymentIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
 from .printer import PrinterError, list_system_printers, print_bill, print_order
 
 log = logging.getLogger("karam")
@@ -142,7 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         items = [
             {"id": r["id"], "category": r["category"], "name": r["name"], "description": r["description"],
              "price": r["price"], "veg": bool(r["veg"]), "spice": r["spice"], "hue": r["hue"], "available": bool(r["available"]),
-             "image": adm.image_url(r["image"]), "image_credit": r["image_credit"] or ""}
+             "no_gst": bool(r["no_gst"]), "image": adm.image_url(r["image"]), "image_credit": r["image_credit"] or ""}
             for r in rows
         ]
         cats = list(dict.fromkeys(i["category"] for i in items))   # items are already sorted
@@ -179,6 +179,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if order["status"] != "cancelled":
             background.add_task(print_task, order)   # the kitchen gets a fresh slip marked UPDATED
         return svc.public_view(order)
+
+    @app.get("/api/payment")
+    def payment(conn=Depends(get_db)):
+        return adm.payment_info(conn)
 
     @app.get("/api/tables/{table_no}/bill")
     def guest_bill(table_no: int, conn=Depends(get_db)):
@@ -300,6 +304,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.put("/api/admin/menu/{item_id}/image", dependencies=A)
     def admin_set_image(item_id: str, body: ImageIn, conn=Depends(get_db)):
         return guard(adm.set_image, conn, s, item_id, body.data, body.credit)
+
+    @app.put("/api/admin/payment", dependencies=A)
+    def admin_set_payment(body: PaymentIn, conn=Depends(get_db)):
+        return guard(adm.set_payment, conn, s, body.qr, body.upi_id)
+
+    @app.delete("/api/admin/payment/qr", dependencies=A)
+    def admin_remove_payment_qr(conn=Depends(get_db)):
+        return guard(adm.remove_payment_qr, conn, s)
 
     @app.delete("/api/admin/menu/{item_id}/image", dependencies=A)
     def admin_remove_image(item_id: str, conn=Depends(get_db)):

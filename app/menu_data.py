@@ -6,6 +6,9 @@ kitchen screen. Prices are whole rupees.
 
 CATEGORIES = ["Starters", "Biryani", "Curries", "Sides & Drinks"]
 
+# Packaged items sold at their printed MRP: GST is already inside the MRP, so none is added on the bill.
+PACKAGED = {"d5"}
+
 # id, category, name, description, price, veg, spice (0-3), hue (0-360, tile colour), available
 ITEMS = [
     ("s1", "Starters", "Chicken Lollipop", "Five pieces, fried crisp in our house masala. Moderately spicy.", 370, 0, 2, 18, 1),

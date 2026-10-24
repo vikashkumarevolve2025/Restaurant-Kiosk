@@ -25,7 +25,8 @@ def _item(conn: sqlite3.Connection, item_id: str) -> dict:
         raise OrderError(404, "not_found", "Item not found.")
     return {"id": r["id"], "category": r["category"], "name": r["name"], "description": r["description"],
             "price": r["price"], "veg": bool(r["veg"]), "spice": r["spice"], "hue": r["hue"],
-            "available": bool(r["available"]), "image": image_url(r["image"]), "image_credit": r["image_credit"] or ""}
+            "available": bool(r["available"]), "no_gst": bool(r["no_gst"]),
+            "image": image_url(r["image"]), "image_credit": r["image_credit"] or ""}
 
 
 # ---------- dish photos ----------
@@ -52,10 +53,8 @@ def _image_kind(data: bytes) -> str | None:
     return None
 
 
-def set_image(conn: sqlite3.Connection, settings: Settings, item_id: str, data_url: str, credit: str = "") -> dict:
-    old = conn.execute("SELECT image FROM menu_items WHERE id = ?", (item_id,)).fetchone()
-    if not old:
-        raise OrderError(404, "not_found", "Item not found.")
+def _decode_image(data_url: str) -> tuple[bytes, str]:
+    """A data URL from the admin screen -> image bytes and extension. Anything that is not a real photo is refused."""
     m = re.fullmatch(r"data:image/(?:jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)", data_url.strip())
     try:
         data = base64.b64decode(m.group(1), validate=False) if m else b""
@@ -66,6 +65,60 @@ def set_image(conn: sqlite3.Connection, settings: Settings, item_id: str, data_u
         raise OrderError(422, "bad_image", "That file is not a JPEG, PNG or WebP photo.")
     if len(data) > MAX_IMAGE_BYTES:
         raise OrderError(422, "too_big", "That photo is too large. Use one under 2 MB.")
+    return data, ext
+
+
+# ---------- UPI payment QR (shown on the kiosk slip) ----------
+UPI_ID_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9.]{1,63}$")
+
+
+def _setting(conn: sqlite3.Connection, key: str) -> str:
+    row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else ""
+
+
+def _put_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    if value:
+        conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
+    else:
+        conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+
+
+def payment_info(conn: sqlite3.Connection) -> dict:
+    return {"qr": image_url(_setting(conn, "payment_qr")), "upi_id": _setting(conn, "upi_id")}
+
+
+def set_payment(conn: sqlite3.Connection, settings: Settings, data_url: str | None, upi_id: str | None) -> dict:
+    """Save the shop's UPI QR (a photo of it, or the image from the bank app) and/or its UPI ID."""
+    if upi_id is not None:
+        upi_id = upi_id.strip()
+        if upi_id and not UPI_ID_RE.match(upi_id):
+            raise OrderError(422, "bad_upi", "A UPI ID looks like shopname@okaxis.")
+        _put_setting(conn, "upi_id", upi_id)
+    if data_url:
+        data, ext = _decode_image(data_url)
+        folder = images_dir(settings)
+        folder.mkdir(parents=True, exist_ok=True)
+        name = f"payqr-{hashlib.sha256(data).hexdigest()[:10]}.{ext}"
+        (folder / name).write_bytes(data)
+        old = _setting(conn, "payment_qr")
+        _put_setting(conn, "payment_qr", name)
+        _drop_image_file(settings, old, keep=name)
+    return payment_info(conn)
+
+
+def remove_payment_qr(conn: sqlite3.Connection, settings: Settings) -> dict:
+    old = _setting(conn, "payment_qr")
+    _put_setting(conn, "payment_qr", "")
+    _drop_image_file(settings, old)
+    return payment_info(conn)
+
+
+def set_image(conn: sqlite3.Connection, settings: Settings, item_id: str, data_url: str, credit: str = "") -> dict:
+    old = conn.execute("SELECT image FROM menu_items WHERE id = ?", (item_id,)).fetchone()
+    if not old:
+        raise OrderError(404, "not_found", "Item not found.")
+    data, ext = _decode_image(data_url)
     folder = images_dir(settings)
     folder.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", item_id)[:24] or "dish"
@@ -122,9 +175,9 @@ def create_item(conn: sqlite3.Connection, d: MenuItemIn) -> dict:
             raise OrderError(409, "duplicate", f"{d.name} is already in {d.category}.")
         iid = _new_id(conn)
         conn.execute(
-            "INSERT INTO menu_items (id, category, name, description, price, veg, spice, hue, available, sort) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO menu_items (id, category, name, description, price, veg, spice, hue, available, sort, no_gst) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (iid, d.category, d.name, d.description, d.price, int(d.veg), d.spice,
-             d.hue if d.hue is not None else _default_hue(d.name), int(d.available), _sort_for_category(conn, d.category)),
+             d.hue if d.hue is not None else _default_hue(d.name), int(d.available), _sort_for_category(conn, d.category), int(d.no_gst)),
         )
         conn.execute("COMMIT")
     except BaseException:

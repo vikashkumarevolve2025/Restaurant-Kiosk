@@ -34,6 +34,11 @@ def gst_amount(subtotal: int, percent: int) -> int:
     return (subtotal * percent + 50) // 100  # round half up, integers only
 
 
+def taxable(lines) -> int:
+    """The part of a subtotal GST is charged on: (price, qty, no_gst) lines, leaving out packaged MRP items."""
+    return sum(price * qty for price, qty, no_gst in lines if not no_gst)
+
+
 def mask_phone(phone: str) -> str:
     return phone[:2] + "XXXXX" + phone[7:]
 
@@ -44,7 +49,7 @@ def type_label(order_type: str, table_no: int | None) -> str:
 
 def _row_to_order(conn: sqlite3.Connection, row: sqlite3.Row, settings: Settings) -> dict:
     items = conn.execute(
-        "SELECT item_id, name, price, qty FROM order_items WHERE order_id = ? ORDER BY rowid", (row["id"],)
+        "SELECT item_id, name, price, qty, no_gst FROM order_items WHERE order_id = ? ORDER BY rowid", (row["id"],)
     ).fetchall()
     created = datetime.fromisoformat(row["created_at"])
     return {
@@ -58,7 +63,8 @@ def _row_to_order(conn: sqlite3.Connection, row: sqlite3.Row, settings: Settings
         "bill_id": row["bill_id"],
         "type_label": type_label(row["order_type"], row["table_no"]),
         "items": [
-            {"id": i["item_id"], "name": i["name"], "price": i["price"], "qty": i["qty"], "line": i["price"] * i["qty"]}
+            {"id": i["item_id"], "name": i["name"], "price": i["price"], "qty": i["qty"], "line": i["price"] * i["qty"],
+             "no_gst": bool(i["no_gst"])}
             for i in items
         ],
         "subtotal": row["subtotal"],
@@ -123,7 +129,7 @@ def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn) ->
     try:
         by_id = _menu_rows(conn, qty_by_id)
         subtotal = sum(by_id[i]["price"] * q for i, q in qty_by_id.items())
-        gst = gst_amount(subtotal, settings.gst_percent)
+        gst = gst_amount(taxable(((by_id[i]["price"], q, by_id[i]["no_gst"]) for i, q in qty_by_id.items())), settings.gst_percent)
         token = conn.execute(
             "SELECT COALESCE(MAX(token), 0) + 1 FROM orders WHERE token_date = ?", (today,)
         ).fetchone()[0]
@@ -153,8 +159,8 @@ def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn) ->
         )
         oid = cur.lastrowid
         conn.executemany(
-            "INSERT INTO order_items (order_id, item_id, name, price, qty) VALUES (?,?,?,?,?)",
-            [(oid, i, by_id[i]["name"], by_id[i]["price"], q) for i, q in qty_by_id.items()],
+            "INSERT INTO order_items (order_id, item_id, name, price, qty, no_gst) VALUES (?,?,?,?,?,?)",
+            [(oid, i, by_id[i]["name"], by_id[i]["price"], q, by_id[i]["no_gst"]) for i, q in qty_by_id.items()],
         )
         conn.execute("COMMIT")
     except BaseException:
@@ -179,17 +185,21 @@ def edit_order(conn: sqlite3.Connection, settings: Settings, order_id: int, edit
         if not qty_by_id:
             conn.execute("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", (ts, order_id))
         else:
-            current = {r["item_id"]: (r["qty"], r["price"], r["name"]) for r in conn.execute(
-                "SELECT item_id, qty, price, name FROM order_items WHERE order_id = ?", (order_id,))}
+            current = {r["item_id"]: (r["qty"], r["price"], r["name"], r["no_gst"]) for r in conn.execute(
+                "SELECT item_id, qty, price, name, no_gst FROM order_items WHERE order_id = ?", (order_id,))}
             by_id = _menu_rows(conn, qty_by_id, keep={k: v[0] for k, v in current.items()})
-            # Dishes already on the order keep the price they were ordered at; new dishes take today's price.
-            lines = [(i, current[i][2] if i in current else by_id[i]["name"], current[i][1] if i in current else by_id[i]["price"], q)
-                     for i, q in qty_by_id.items()]
-            subtotal = sum(price * q for _, _, price, q in lines)
-            gst = gst_amount(subtotal, settings.gst_percent)
+            # Dishes already on the order keep the price (and GST rule) they were ordered at; new dishes take today's.
+            lines = []
+            for i, q in qty_by_id.items():
+                if i in current:
+                    lines.append((i, current[i][2], current[i][1], q, current[i][3]))
+                else:
+                    lines.append((i, by_id[i]["name"], by_id[i]["price"], q, by_id[i]["no_gst"]))
+            subtotal = sum(price * q for _, _, price, q, _ in lines)
+            gst = gst_amount(taxable((price, q, ng) for _, _, price, q, ng in lines), settings.gst_percent)
             conn.execute("DELETE FROM order_items WHERE order_id = ?", (order_id,))
-            conn.executemany("INSERT INTO order_items (order_id, item_id, name, price, qty) VALUES (?,?,?,?,?)",
-                             [(order_id, i, n, p, q) for i, n, p, q in lines])
+            conn.executemany("INSERT INTO order_items (order_id, item_id, name, price, qty, no_gst) VALUES (?,?,?,?,?,?)",
+                             [(order_id, *line) for line in lines])
             conn.execute("UPDATE orders SET subtotal = ?, gst = ?, total = ?, updated_at = ?, printed = 0 WHERE id = ?",
                          (subtotal, gst, subtotal + gst, ts, order_id))
         conn.execute("COMMIT")
@@ -233,7 +243,8 @@ def _bill_view(conn: sqlite3.Connection, settings: Settings, bill: sqlite3.Row) 
     combined: dict[tuple, dict] = {}
     for o in orders:
         for i in o["items"]:
-            line = combined.setdefault((i["id"], i["price"]), {"id": i["id"], "name": i["name"], "price": i["price"], "qty": 0, "line": 0})
+            line = combined.setdefault((i["id"], i["price"]), {"id": i["id"], "name": i["name"], "price": i["price"], "qty": 0, "line": 0,
+                                                               "no_gst": i["no_gst"]})
             line["qty"] += i["qty"]
             line["line"] += i["line"]
     return {
@@ -255,8 +266,12 @@ def _bill_view(conn: sqlite3.Connection, settings: Settings, bill: sqlite3.Row) 
 
 
 def public_bill(bill: dict) -> dict:
-    """What anyone at the table may see: dishes and money, no names."""
-    return {k: v for k, v in bill.items() if k != "guests"}
+    """What anyone at the table may see: the dishes and their prices. No names, and no totals or GST:
+    the bill amount is given by staff when the guests pay."""
+    hidden = {"guests", "subtotal", "gst", "gst_percent", "total"}
+    view = {k: v for k, v in bill.items() if k not in hidden}
+    view["rounds"] = [{k: v for k, v in r.items() if k != "total"} for r in bill["rounds"]]
+    return view
 
 
 def _check_table(settings: Settings, table_no: int) -> None:
