@@ -1,4 +1,4 @@
-# Karam Kitchen ordering server
+# Restaurant Kitchen ordering server
 
 Self-order kiosk, table QR ordering, kitchen screen and receipt printing for a small restaurant.
 FastAPI and SQLite, no build step.
