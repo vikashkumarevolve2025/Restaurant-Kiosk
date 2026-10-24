@@ -124,6 +124,14 @@ def init_db(path: str) -> None:
             conn.execute("ALTER TABLE orders ADD COLUMN updated_by TEXT")
         if conn.execute("PRAGMA user_version").fetchone()[0] < 6:
             conn.execute("PRAGMA user_version = 6")
+        # v7: how a table paid when staff closed it (UPI, cash or card) and the amount they checked.
+        bcols = {r["name"] for r in conn.execute("PRAGMA table_info(table_bills)")}
+        if "paid_method" not in bcols:
+            conn.execute("ALTER TABLE table_bills ADD COLUMN paid_method TEXT")
+        if "paid_amount" not in bcols:
+            conn.execute("ALTER TABLE table_bills ADD COLUMN paid_amount INTEGER")
+        if conn.execute("PRAGMA user_version").fetchone()[0] < 7:
+            conn.execute("PRAGMA user_version = 7")
         if conn.execute("SELECT COUNT(*) FROM menu_items").fetchone()[0] == 0:
             order = {c: i for i, c in enumerate(CATEGORIES)}
             rows = [

@@ -21,7 +21,7 @@ from . import orders as svc
 from . import runtime_config as rc
 from .config import BASE_DIR, Settings
 from .db import connect, init_db
-from .models import AvailabilityIn, ImageIn, PaymentIn, StaffEditIn, WaiterOrderIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
+from .models import AvailabilityIn, CloseIn, ImageIn, PaymentIn, StaffEditIn, WaiterOrderIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
 from .printer import PrinterError, list_system_printers, print_bill, print_order
 
 log = logging.getLogger("karam")
@@ -271,9 +271,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"printed": True, "via": where}
 
     @app.post("/api/tables/{table_no}/bill/close", dependencies=[Depends(require_staff)])
-    def staff_close_bill(table_no: int, conn=Depends(get_db)):
+    def staff_close_bill(table_no: int, body: CloseIn | None = None, conn=Depends(get_db)):
+        body = body or CloseIn()
         try:
-            return {"bill": svc.close_bill(conn, s, table_no)}
+            return {"bill": svc.close_bill(conn, s, table_no, body.method, body.amount)}
         except svc.OrderError as e:
             fail(e)
 

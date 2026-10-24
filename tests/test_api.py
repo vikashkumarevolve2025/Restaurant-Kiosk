@@ -295,3 +295,19 @@ def test_waiter_sees_all_tables_and_edits_running_orders(client):
 
 def test_waiter_page(client):
     assert client.get("/waiter").status_code == 200 and "/api/staff/orders" in client.get("/waiter").text
+
+
+def test_table_closes_only_on_the_checked_amount(client):
+    import sqlite3
+    client.post("/api/orders", json=order(table=2))                                           # 872
+    seen = client.get("/api/bills", headers=PIN).json()["bills"][0]["total"]
+    assert seen == 872
+    client.post("/api/staff/orders", json={"table": 2, "items": [{"id": "d2", "qty": 1}]}, headers=PIN)   # +53 while paying
+    r = client.post("/api/tables/2/bill/close", json={"method": "upi", "amount": seen}, headers=PIN)
+    assert r.status_code == 409 and "925" in r.json()["detail"]["message"]                   # still open: they owe more
+    assert client.get("/api/tables/2/bill").json()["bill"] is not None
+    r = client.post("/api/tables/2/bill/close", json={"method": "upi", "amount": 925}, headers=PIN)
+    assert r.status_code == 200 and r.json()["bill"]["paid_method"] == "upi"
+    db = sqlite3.connect(client.settings.db_path)
+    assert db.execute("SELECT paid_method, paid_amount, status FROM table_bills").fetchone() == ("upi", 925, "closed")
+    assert client.post("/api/tables/2/bill/close", json={"method": "cheque"}, headers=PIN).status_code == 422

@@ -116,6 +116,19 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
 .seg button { flex: 1; border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; min-height: 44px; font-weight: 700; }
 .seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
+/* payment */
+.due { background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px; padding: 16px; text-align: center; }
+.due span { display: block; color: var(--muted); font-weight: 700; font-size: .85rem; letter-spacing: .06em; text-transform: uppercase; }
+.due strong { display: block; font-family: var(--font-display); font-size: 2.6rem; line-height: 1.1; color: var(--action); }
+.due small { color: var(--muted); }
+.methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+.methods button { border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; min-height: 48px; font-weight: 800; }
+.methods button[aria-pressed="true"] { border-color: var(--action); background: var(--ok-soft); color: var(--action); }
+.qrbox { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; text-align: center; }
+.qrbox img { width: min(260px, 78vw); aspect-ratio: 1; object-fit: contain; background: #fff; padding: 8px; border-radius: 12px; display: block; margin: 0 auto 8px; }
+.qrbox .id { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
+.check { display: flex; gap: 12px; align-items: flex-start; background: var(--warn-soft); border-radius: 12px; padding: 14px; margin-top: 14px; font-weight: 700; }
+.check input { width: 26px; height: 26px; flex: none; accent-color: var(--action); margin: 0; }
 .gate { max-width: 340px; margin: 14vh auto; display: grid; gap: 12px; }
 .gate input { font-size: 1.3rem; padding: 14px; letter-spacing: .2em; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); }
 .empty { color: var(--muted); border: 1.5px dashed var(--line); border-radius: 12px; padding: 18px; text-align: center; margin-top: 12px; }
@@ -164,6 +177,18 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
     <div id="menu"></div>
     <p class="err" id="pErr" role="alert"></p>
   </section>
+
+  <!-- Collect payment, then close the table -->
+  <section id="vPay" hidden>
+    <div class="top"><div class="head"><button class="btn sm" id="backPay" type="button">← Back</button><h2 id="payTitle"></h2></div></div>
+    <div class="due"><span>Amount to collect</span><strong id="payDue"></strong><small id="payBreak"></small></div>
+    <div class="methods" id="methods" role="group" aria-label="Payment method">
+      <button type="button" data-m="upi">UPI</button><button type="button" data-m="cash">Cash</button><button type="button" data-m="card">Card</button>
+    </div>
+    <div id="payBody"></div>
+    <label class="check"><input type="checkbox" id="payOk"><span id="payOkText"></span></label>
+    <p class="err" id="payErr" role="alert"></p>
+  </section>
 </div>
 </div>
 
@@ -172,7 +197,8 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var pin = "", MENU = [], CATS = [], TABLES = 3, bills = [], view = "floor", current = null, editing = null, cart = {}, cat = null, closeArmed = false, timer = null;
+  var pin = "", MENU = [], CATS = [], TABLES = 3, bills = [], view = "floor", current = null, editing = null, cart = {}, cat = null, timer = null;
+  var PAY = { qr: null, upi_id: "" }, method = "upi", payTotal = null;
   try { pin = sessionStorage.getItem("kpin") || ""; } catch (e) {}
 
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -195,7 +221,7 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
   /* ---------- views ---------- */
   function show(v) {
     view = v;
-    ["vFloor", "vTable", "vPick"].forEach(function (id) { $(id).hidden = id !== { floor: "vFloor", table: "vTable", pick: "vPick" }[v]; });
+    ["vFloor", "vTable", "vPick", "vPay"].forEach(function (id) { $(id).hidden = id !== { floor: "vFloor", table: "vTable", pick: "vPick", pay: "vPay" }[v]; });
     renderBar(); window.scrollTo(0, 0);
   }
   function renderBar() {
@@ -203,7 +229,9 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
     if (view === "table") {
       var b = billFor(current);
       h = '<button class="btn go" data-bar="add" type="button">+ Add items</button>' +
-        (b ? '<button class="btn" data-bar="print" type="button">Print bill</button><button class="btn accent" data-bar="close" type="button">' + (closeArmed ? "Confirm: paid, close" : "Paid, close table") + '</button>' : "");
+        (b ? '<button class="btn" data-bar="print" type="button">Print bill</button><button class="btn accent" data-bar="pay" type="button">Paid, close table</button>' : "");
+    } else if (view === "pay") {
+      h = '<button class="btn go" data-bar="close" type="button"' + ($("payOk").checked ? "" : " disabled") + '>Payment received, close table</button>';
     } else if (view === "pick") {
       var n = 0, sum = 0;
       Object.keys(cart).forEach(function (id) { var m = item(id); if (m) { n += cart[id]; sum += cart[id] * m.price; } });
@@ -227,7 +255,7 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
   }
 
   /* ---------- one table ---------- */
-  function openTable(t) { current = t; editing = null; closeArmed = false; $("tMsg").textContent = ""; $("tErr").textContent = ""; renderTable(); show("table"); }
+  function openTable(t) { current = t; editing = null; $("tMsg").textContent = ""; $("tErr").textContent = ""; renderTable(); show("table"); }
   function renderTable() {
     var b = billFor(current);
     $("tTitle").textContent = "Table " + current;
@@ -270,6 +298,57 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
       editing = null; $("tMsg").textContent = o.status === "cancelled" ? "Order #" + o.token + " removed." : "Order #" + o.token + " updated. The kitchen has the new list.";
       return refresh();
     }).catch(function (e) { btn.disabled = false; onErr("tErr")(e); });
+  }
+
+  /* ---------- collect payment ---------- */
+  // Show the bill amount and the shop's UPI QR; the table closes only after staff confirm the money has arrived.
+  var CHECK = {
+    upi: "I have checked that {amt} arrived (in the shop's UPI app or bank message).",
+    cash: "I have received {amt} in cash.",
+    card: "The card payment of {amt} is approved."
+  };
+  function openPay() {
+    $("payErr").textContent = ""; $("payOk").checked = false;
+    method = PAY.qr ? "upi" : "cash";
+    return api("/api/bills").then(function (d) { bills = d.bills; renderPay(); show("pay"); }).catch(onErr("tErr"));
+  }
+  function renderPay() {
+    var b = billFor(current);
+    if (!b) { renderFloor(); show("floor"); return; }
+    if (payTotal !== null && payTotal !== b.total) {
+      $("payOk").checked = false;
+      $("payErr").textContent = "The bill changed to " + inr(b.total) + " (something was added or edited). Collect the new amount.";
+    }
+    payTotal = b.total;
+    $("payTitle").textContent = "Table " + current + " payment";
+    $("payDue").textContent = inr(b.total);
+    $("payBreak").textContent = "Subtotal " + inr(b.subtotal) + " + GST " + inr(b.gst) + " · " + b.rounds.length + (b.rounds.length === 1 ? " order" : " orders");
+    Array.prototype.forEach.call($("methods").children, function (x) { x.setAttribute("aria-pressed", String(x.dataset.m === method)); });
+    if (method === "upi") {
+      $("payBody").innerHTML = PAY.qr
+        ? '<div class="qrbox"><img src="' + esc(PAY.qr) + '" alt="Shop UPI QR code"><div>Show this to the guest. They scan it and pay <b>' + inr(b.total) + '</b>.</div>' +
+          (PAY.upi_id ? '<div class="id">' + esc(PAY.upi_id) + '</div>' : '') + '</div>'
+        : '<div class="empty">No UPI QR code yet. The owner can upload it in Admin, Tools. Take cash or card, or ask the guest to pay to the shop\'s UPI ID.</div>';
+    } else {
+      $("payBody").innerHTML = '<div class="empty">' + (method === "cash" ? "Collect " + inr(b.total) + " in cash." : "Take " + inr(b.total) + " on the card machine.") + '</div>';
+    }
+    $("payOkText").textContent = CHECK[method].replace("{amt}", inr(b.total));
+    renderBar();
+  }
+  function closeTable(btn) {
+    btn.disabled = true; $("payErr").textContent = "";
+    api("/api/tables/" + current + "/bill/close", { method: "POST", body: JSON.stringify({ method: method, amount: payTotal }) }).then(function (d) {
+      payTotal = null;
+      return refresh().then(function () {
+        renderFloor(); show("floor"); $("netErr").className = "ok";
+        $("netErr").textContent = "Table " + d.bill.table + " paid by " + method.toUpperCase() + " (" + inr(d.bill.total) + ") and closed.";
+        setTimeout(function () { $("netErr").className = "err"; $("netErr").textContent = ""; }, 6000);
+      });
+    }).catch(function (err) {
+      btn.disabled = false;
+      if (err.status === 409) { $("payOk").checked = false; return api("/api/bills").then(function (d) { bills = d.bills; payTotal = null; renderPay(); $("payErr").textContent = err.message; }); }
+      onErr("payErr")(err);
+    });
   }
 
   /* ---------- quick menu ---------- */
@@ -319,10 +398,12 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
       bills = d.bills; $("netErr").className === "ok" || ($("netErr").textContent = "");
       if (view === "floor") renderFloor();
       if (view === "table" && !editing) renderTable();
+      if (view === "pay") renderPay();
     }).catch(onErr("netErr"));
   }
   function start() {
     $("gate").hidden = true; $("app").hidden = false;
+    fetch("/api/payment").then(function (r) { return r.json(); }).then(function (p) { PAY = p; }).catch(function () {});
     loadMenu().then(refresh).then(function () { renderFloor(); show("floor"); });
     clearInterval(timer); timer = setInterval(function () { if (view !== "pick") refresh(); }, 5000);
   }
@@ -341,6 +422,9 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
   $("takeaway").addEventListener("click", function () { openPick(null); });
   $("tables").addEventListener("click", function (e) { var b = e.target.closest("[data-t]"); if (b) openTable(parseInt(b.dataset.t, 10)); });
   $("backFloor").addEventListener("click", function () { renderFloor(); show("floor"); refresh(); });
+  $("backPay").addEventListener("click", function () { payTotal = null; renderTable(); show("table"); });
+  $("methods").addEventListener("click", function (e) { var b = e.target.closest("[data-m]"); if (!b) return; method = b.dataset.m; $("payOk").checked = false; renderPay(); });
+  $("payOk").addEventListener("change", renderBar);
   $("backPick").addEventListener("click", function () { if (current) { renderTable(); show("table"); } else { renderFloor(); show("floor"); } });
   $("rounds").addEventListener("click", function (e) {
     var s = e.target.closest("[data-eid]");
@@ -369,14 +453,8 @@ details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(-
       b.disabled = true;
       api("/api/tables/" + current + "/bill/print", { method: "POST" }).then(function () { b.textContent = "Bill printed"; $("tMsg").textContent = "Bill sent to the printer."; })
         .catch(function (err) { b.disabled = false; onErr("tErr")(err); });
-    } else if (act === "close") {
-      if (!closeArmed) { closeArmed = true; renderBar(); setTimeout(function () { closeArmed = false; if (view === "table") renderBar(); }, 4000); return; }
-      closeArmed = false; b.disabled = true;
-      api("/api/tables/" + current + "/bill/close", { method: "POST" }).then(function (d) {
-        return refresh().then(function () { renderFloor(); show("floor"); $("netErr").className = "ok"; $("netErr").textContent = "Table " + d.bill.table + " paid and closed (" + inr(d.bill.total) + ").";
-          setTimeout(function () { $("netErr").className = "err"; $("netErr").textContent = ""; }, 6000); });
-      }).catch(function (err) { b.disabled = false; onErr("tErr")(err); });
-    }
+    } else if (act === "pay") openPay();
+    else if (act === "close") closeTable(b);
   });
 
   if (!/^https?:$/.test(location.protocol)) { $("gateErr").textContent = "This page was opened as a file. Type http://localhost:8080/waiter into your browser instead."; return; }

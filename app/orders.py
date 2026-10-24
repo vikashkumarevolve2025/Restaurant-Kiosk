@@ -320,15 +320,22 @@ def request_bill(conn: sqlite3.Connection, settings: Settings, table_no: int) ->
     return table_bill(conn, settings, table_no)  # type: ignore[return-value]
 
 
-def close_bill(conn: sqlite3.Connection, settings: Settings, table_no: int) -> dict:
+def close_bill(conn: sqlite3.Connection, settings: Settings, table_no: int,
+               method: str | None = None, amount: int | None = None) -> dict:
+    """Staff close a table once it has paid. If they say what amount they checked, it must still be the bill total:
+    a dish added after the payment screen opened means the guests owe more, so the table stays open."""
     _check_table(settings, table_no)
     row = _open_bill_row(conn, table_no)
     if not row:
         raise OrderError(404, "no_bill", "This table has no open bill.")
     bill = _bill_view(conn, settings, row)
-    conn.execute("UPDATE table_bills SET status = 'closed', closed_at = ? WHERE id = ?",
-                 (now(settings).isoformat(timespec="seconds"), row["id"]))
+    if amount is not None and amount != bill["total"]:
+        raise OrderError(409, "bill_changed", f"The bill is now Rs {bill['total']}, not Rs {amount}: something was added or changed. "
+                                              "Check the new amount with the guests before closing the table.")
+    conn.execute("UPDATE table_bills SET status = 'closed', closed_at = ?, paid_method = ?, paid_amount = ? WHERE id = ?",
+                 (now(settings).isoformat(timespec="seconds"), method, bill["total"] if method else None, row["id"]))
     bill["status"] = "closed"
+    bill["paid_method"] = method
     return bill
 
 

@@ -61,6 +61,23 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
 .bill .tkhead .tok { font-size: 1.6rem; }
 .bill .flag { color: var(--warn); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.8rem; }
 .bill .money { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+/* payment pop-up before a table closes */
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / .6); z-index: 50; display: grid; place-items: center; padding: 16px; overflow-y: auto; }
+.mbox { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; width: min(420px, 100%); display: grid; gap: 12px; }
+.mbox h2 { margin: 0; font-family: var(--font-display); font-size: 1.4rem; }
+.mdue { text-align: center; }
+.mdue strong { display: block; font-family: var(--font-display); font-size: 2.4rem; color: var(--ok); line-height: 1.1; }
+.mdue small { color: var(--muted); }
+.mmeth { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mmeth button { background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; min-height: 44px; font-weight: 800; }
+.mmeth button[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); }
+.mqr { text-align: center; }
+.mqr img { width: min(240px, 70vw); aspect-ratio: 1; object-fit: contain; background: #fff; padding: 8px; border-radius: 10px; }
+.mqr .id { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
+.mcheck { display: flex; gap: 10px; align-items: flex-start; background: #3a2c12; border-radius: 10px; padding: 12px; font-weight: 700; }
+.mcheck input { width: 24px; height: 24px; flex: none; accent-color: var(--ok); margin: 0; }
+.macts { display: flex; gap: 8px; }
+.macts .btn { flex: 1; }
 .gate { max-width: 340px; margin: 12vh auto; display: grid; gap: 12px; }
 .gate input { font: inherit; font-size: 1.3rem; padding: 14px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); letter-spacing: 0.2em; }
 .err { color: var(--bad); min-height: 1.3em; margin: 0; }
@@ -108,11 +125,24 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
   </div>
 </div>
 
+<div class="modal" id="payModal" hidden role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="mbox">
+    <h2 id="payTitle"></h2>
+    <div class="mdue"><strong id="payDue"></strong><small id="payBreak"></small></div>
+    <div class="mmeth" id="payMeth"><button type="button" data-m="upi">UPI</button><button type="button" data-m="cash">Cash</button><button type="button" data-m="card">Card</button></div>
+    <div id="payBody"></div>
+    <label class="mcheck"><input type="checkbox" id="payOk"><span id="payOkText"></span></label>
+    <p class="err" id="payErr" role="alert"></p>
+    <div class="macts"><button class="btn" id="payCancel" type="button">Back</button><button class="btn ok" id="payClose" type="button" disabled>Payment received, close table</button></div>
+  </div>
+</div>
+
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var pin = "", seen = null, orders = [], timer = null, sound = true, armed = {}, audio = null;
-  var bills = [], asked = null, closeArmed = null;
+  var bills = [], asked = null;
+  var PAY = { qr: null, upi_id: "" }, payTable = null, payMethod = "upi", payTotal = null;
   try { pin = sessionStorage.getItem("kpin") || ""; } catch (e) {}
 
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -188,7 +218,7 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
         (b.rounds.length ? ' (' + b.rounds.map(function (r) { return '#' + r.token; }).join(", ") + ')' : '') +
         (b.guests.length ? ' &middot; ' + esc(b.guests.join(", ")) : '') + '</div>' +
         '<div class="acts"><button class="btn" data-bill="print" type="button">Print bill</button>' +
-        '<button class="btn ok" data-bill="close" type="button">' + (closeArmed === b.table ? "Confirm: paid, close" : "Paid, close table") + '</button></div></article>';
+        '<button class="btn ok" data-bill="close" type="button">Paid, close table</button></div></article>';
     }).join("");
   }
   function refreshBills() {
@@ -197,6 +227,7 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
       d.bills.forEach(function (b) { if (b.status === "bill_requested") now[b.table] = 1; });
       if (asked && Object.keys(now).some(function (t) { return !asked[t]; })) beep();
       asked = now; bills = d.bills; renderBills();
+      if (payTable !== null) renderPay();
     }).catch(function () {});
   }
   function refreshStats() {
@@ -214,6 +245,7 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
 
   function start() {
     $("gate").hidden = true; $("app").hidden = false; seen = null; asked = null;
+    fetch("/api/payment").then(function (r) { return r.json(); }).then(function (p) { PAY = p; }).catch(function () {});
     refresh().then(function () { loadMenu(); refreshStats(); refreshBills(); });
     clearInterval(timer);
     timer = setInterval(function () { refresh(); refreshStats(); refreshBills(); }, 4000);
@@ -246,9 +278,42 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
       api("/api/tables/" + t + "/bill/print", { method: "POST" }).then(function () { b.textContent = "Printed"; }).catch(function (err) { b.disabled = false; $("netErr").textContent = err.message; });
       return;
     }
-    if (closeArmed !== t) { closeArmed = t; renderBills(); setTimeout(function () { closeArmed = null; renderBills(); }, 4000); return; }
-    closeArmed = null;
-    api("/api/tables/" + t + "/bill/close", { method: "POST" }).then(refreshBills).catch(function (err) { $("netErr").textContent = err.message; });
+    openPay(t);
+  });
+
+  // Collect payment first: show the amount and the shop's UPI QR; close only after staff confirm the money arrived.
+  var CHECK = { upi: "I have checked that {amt} arrived in the shop's UPI app.", cash: "I have received {amt} in cash.", card: "The card payment of {amt} is approved." };
+  function openPay(t) {
+    payTable = t; payTotal = null; payMethod = PAY.qr ? "upi" : "cash"; $("payOk").checked = false; $("payErr").textContent = "";
+    renderPay(); $("payModal").hidden = false; $("payCancel").focus();
+  }
+  function renderPay() {
+    var b = bills.filter(function (x) { return x.table === payTable; })[0];
+    if (!b) { $("payModal").hidden = true; payTable = null; return; }
+    if (payTotal !== null && payTotal !== b.total) { $("payOk").checked = false; $("payErr").textContent = "The bill changed to " + inr(b.total) + ". Collect the new amount."; }
+    payTotal = b.total;
+    $("payTitle").textContent = "Table " + b.table + " payment";
+    $("payDue").textContent = inr(b.total);
+    $("payBreak").textContent = "Subtotal " + inr(b.subtotal) + " + GST " + inr(b.gst);
+    Array.prototype.forEach.call($("payMeth").children, function (x) { x.setAttribute("aria-pressed", String(x.dataset.m === payMethod)); });
+    $("payBody").innerHTML = payMethod !== "upi" ? "" : PAY.qr
+      ? '<div class="mqr"><img src="' + esc(PAY.qr) + '" alt="Shop UPI QR code"><div>Guest scans and pays ' + inr(b.total) + '</div>' + (PAY.upi_id ? '<div class="id">' + esc(PAY.upi_id) + '</div>' : '') + '</div>'
+      : '<p class="note">No UPI QR code yet. The owner can upload it in Admin, Tools.</p>';
+    $("payOkText").textContent = CHECK[payMethod].replace("{amt}", inr(b.total));
+    $("payClose").disabled = !$("payOk").checked;
+  }
+  function closePay() { $("payModal").hidden = true; payTable = null; payTotal = null; }
+  $("payMeth").addEventListener("click", function (e) { var b = e.target.closest("[data-m]"); if (!b) return; payMethod = b.dataset.m; $("payOk").checked = false; renderPay(); });
+  $("payOk").addEventListener("change", function () { $("payClose").disabled = !this.checked; });
+  $("payCancel").addEventListener("click", closePay);
+  $("payClose").addEventListener("click", function () {
+    var btn = this; btn.disabled = true; $("payErr").textContent = "";
+    api("/api/tables/" + payTable + "/bill/close", { method: "POST", body: JSON.stringify({ method: payMethod, amount: payTotal }) })
+      .then(function () { closePay(); return refreshBills(); })
+      .catch(function (err) {
+        if (err.status === 409) { $("payOk").checked = false; payTotal = null; refreshBills(); }
+        $("payErr").textContent = err.message; btn.disabled = !$("payOk").checked;
+      });
   });
 
   $("app").addEventListener("click", function (e) {

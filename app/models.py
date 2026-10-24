@@ -62,6 +62,12 @@ class WaiterOrderIn(BaseModel):
         return OrderIn.clean_phone(v) if v.strip() else ""
 
 
+class CloseIn(BaseModel):
+    """How the table paid, and the bill amount staff checked before closing."""
+    method: Optional[Literal["upi", "cash", "card"]] = None
+    amount: Optional[int] = Field(default=None, ge=0)
+
+
 class StaffEditIn(BaseModel):
     """A waiter's new list of dishes for an order. An empty list cancels it."""
     items: list[OrderItemIn] = Field(max_length=40)
