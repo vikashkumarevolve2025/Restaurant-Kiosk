@@ -260,3 +260,38 @@ def test_packaged_items_carry_no_gst(client):
 def test_menu_marks_packaged_items(client):
     items = {i["id"]: i for i in client.get("/api/menu").json()["items"]}
     assert items["d5"]["no_gst"] is True and items["b1"]["no_gst"] is False
+
+
+def test_waiter_takes_order_without_guest_details(client):
+    assert client.post("/api/staff/orders", json={"table": 3, "items": [{"id": "b1", "qty": 1}]}).status_code == 401   # staff PIN needed
+    o = client.post("/api/staff/orders", json={"table": 3, "items": [{"id": "b1", "qty": 2}]}, headers=PIN).json()
+    assert o["name"] == "Table 3 guest" and o["phone_masked"] == "not given" and o["source"] == "waiter" and "edit_key" not in o
+    t = client.post("/api/staff/orders", json={"order_type": "Takeaway", "name": "Ravi", "phone": "9123456789",
+                                               "items": [{"id": "d2", "qty": 1}]}, headers=PIN).json()
+    assert t["type_label"] == "Takeaway" and t["bill_id"] is None
+    # Walk-in orders do not show up as a customer.
+    assert client.get("/api/customers/lookup?phone=9123456789").json()["found"] is True
+    assert client.post("/api/staff/orders", json={"table": 3, "phone": "123", "items": [{"id": "b1", "qty": 1}]}, headers=PIN).status_code == 422
+
+
+def test_waiter_sees_all_tables_and_edits_running_orders(client):
+    guest = client.post("/api/orders", json=order(table=1)).json()                       # a guest orders by QR
+    client.patch(f"/api/orders/{guest['id']}/status", json={"status": "preparing"}, headers=PIN)
+    # The guest can no longer change it, but the waiter can, before the bill is paid.
+    assert client.put(f"/api/orders/{guest['id']}/items", json={"edit_key": guest["edit_key"], "items": [{"id": "b1", "qty": 3}]}).status_code == 409
+    assert client.put(f"/api/staff/orders/{guest['id']}/items", json={"items": [{"id": "b1", "qty": 3}]}).status_code == 401
+    e = client.put(f"/api/staff/orders/{guest['id']}/items", json={"items": [{"id": "b1", "qty": 3}]}, headers=PIN).json()
+    assert e["items"][0]["qty"] == 3 and e["updated_by"] == "waiter" and e["status"] == "preparing"
+    client.post("/api/staff/orders", json={"table": 1, "items": [{"id": "d2", "qty": 2}]}, headers=PIN)   # more on the same bill
+    staff = client.get("/api/bills", headers=PIN).json()["bills"][0]
+    assert staff["table"] == 1 and [r["source"] for r in staff["rounds"]] == ["guest", "waiter"]
+    assert staff["rounds"][0]["name"] == "Asha Rao"
+    assert "name" not in client.get("/api/tables/1/bill").json()["bill"]["rounds"][0]            # guests still see no names
+    # Served orders are final.
+    for st in ("ready", "served"):
+        client.patch(f"/api/orders/{guest['id']}/status", json={"status": st}, headers=PIN)
+    assert client.put(f"/api/staff/orders/{guest['id']}/items", json={"items": []}, headers=PIN).status_code == 409
+
+
+def test_waiter_page(client):
+    assert client.get("/waiter").status_code == 200 and "/api/staff/orders" in client.get("/waiter").text

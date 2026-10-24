@@ -43,6 +43,30 @@ class OrderIn(BaseModel):
         return v
 
 
+class WaiterOrderIn(BaseModel):
+    """An order a waiter takes for a guest. Name and number are optional: the waiter may not have them."""
+    name: str = ""
+    phone: str = ""
+    order_type: Literal["Dine in", "Takeaway"] = "Dine in"
+    table: Optional[int] = None
+    items: list[OrderItemIn] = Field(min_length=1, max_length=40)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str) -> str:
+        return OrderIn.clean_name(v) if v.strip() else ""
+
+    @field_validator("phone")
+    @classmethod
+    def clean_phone(cls, v: str) -> str:
+        return OrderIn.clean_phone(v) if v.strip() else ""
+
+
+class StaffEditIn(BaseModel):
+    """A waiter's new list of dishes for an order. An empty list cancels it."""
+    items: list[OrderItemIn] = Field(max_length=40)
+
+
 class OrderEditIn(BaseModel):
     """The guest's new list for an order they placed. An empty list cancels it."""
     edit_key: str = Field(min_length=10, max_length=64)

@@ -39,7 +39,13 @@ def taxable(lines) -> int:
     return sum(price * qty for price, qty, no_gst in lines if not no_gst)
 
 
+# Orders a waiter takes without the guest's number use this placeholder (like "deleted" for forgotten guests).
+WALKIN = "walkin"
+
+
 def mask_phone(phone: str) -> str:
+    if not phone.isdigit():
+        return "not given"
     return phone[:2] + "XXXXX" + phone[7:]
 
 
@@ -76,6 +82,8 @@ def _row_to_order(conn: sqlite3.Connection, row: sqlite3.Row, settings: Settings
         "created_at": row["created_at"],
         "created_label": created.strftime("%d %b %Y, %I:%M %p"),
         "updated_at": row["updated_at"],
+        "source": row["source"],
+        "updated_by": row["updated_by"],
     }
 
 
@@ -112,7 +120,7 @@ def _menu_rows(conn: sqlite3.Connection, qty_by_id: dict[str, int], keep: dict[s
     return by_id
 
 
-def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn) -> dict:
+def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn, source: str = "guest") -> dict:
     if data.order_type == "Dine in":
         if data.table is None or not (1 <= data.table <= settings.tables):
             raise OrderError(422, "bad_table", "Choose your table.")
@@ -147,15 +155,19 @@ def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn) ->
                 if bill["status"] == "bill_requested":   # they ordered more after asking for the bill
                     conn.execute("UPDATE table_bills SET status = 'open' WHERE id = ?", (bill_id,))
 
-        conn.execute(
-            "INSERT INTO customers (phone, name, order_count, first_seen, last_seen) VALUES (?,?,1,?,?) "
-            "ON CONFLICT(phone) DO UPDATE SET name = excluded.name, order_count = order_count + 1, last_seen = excluded.last_seen",
-            (data.phone, data.name, ts, ts),
-        )
+        if data.phone == WALKIN:
+            conn.execute("INSERT OR IGNORE INTO customers (phone, name, order_count, first_seen, last_seen) "
+                         "VALUES (?, 'Walk-in guest', 0, '', '')", (WALKIN,))
+        else:
+            conn.execute(
+                "INSERT INTO customers (phone, name, order_count, first_seen, last_seen) VALUES (?,?,1,?,?) "
+                "ON CONFLICT(phone) DO UPDATE SET name = excluded.name, order_count = order_count + 1, last_seen = excluded.last_seen",
+                (data.phone, data.name, ts, ts),
+            )
         cur = conn.execute(
-            "INSERT INTO orders (token, token_date, phone, name, order_type, table_no, subtotal, gst, total, status, created_at, bill_id, edit_key) "
-            "VALUES (?,?,?,?,?,?,?,?,?, 'new', ?, ?, ?)",
-            (token, today, data.phone, data.name, data.order_type, table_no, subtotal, gst, subtotal + gst, ts, bill_id, edit_key),
+            "INSERT INTO orders (token, token_date, phone, name, order_type, table_no, subtotal, gst, total, status, created_at, bill_id, edit_key, source) "
+            "VALUES (?,?,?,?,?,?,?,?,?, 'new', ?, ?, ?, ?)",
+            (token, today, data.phone, data.name, data.order_type, table_no, subtotal, gst, subtotal + gst, ts, bill_id, edit_key, source),
         )
         oid = cur.lastrowid
         conn.executemany(
@@ -171,19 +183,27 @@ def create_order(conn: sqlite3.Connection, settings: Settings, data: OrderIn) ->
     return order  # type: ignore[return-value]
 
 
-def edit_order(conn: sqlite3.Connection, settings: Settings, order_id: int, edit_key: str, items) -> dict:
-    """The guest who placed an order changes it. Only while the kitchen has not started; an empty list cancels it."""
+def edit_order(conn: sqlite3.Connection, settings: Settings, order_id: int, edit_key: str | None, items, by: str = "guest") -> dict:
+    """Change an order's dishes; an empty list cancels it.
+    A guest (with the order's edit key) may do this only until the kitchen starts. A waiter (by="waiter", no key)
+    may change any order not yet served, for example when the guest wants more before paying."""
     qty_by_id = _merge_qty(items)
     conn.execute("BEGIN IMMEDIATE")
     try:
         row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
-        if not row or not row["edit_key"] or not hmac.compare_digest(row["edit_key"], edit_key):
-            raise OrderError(404, "not_found", "Order not found.")
-        if row["status"] != "new":
-            raise OrderError(409, "kitchen_started", "The kitchen has already started on this order, so it cannot be changed now. Anything you add goes on a new order.")
+        if by == "waiter":
+            if not row:
+                raise OrderError(404, "not_found", "Order not found.")
+            if row["status"] not in ACTIVE:
+                raise OrderError(409, "closed_order", f"This order is already {row['status']}, so it cannot be changed.")
+        else:
+            if not row or not row["edit_key"] or not edit_key or not hmac.compare_digest(row["edit_key"], edit_key):
+                raise OrderError(404, "not_found", "Order not found.")
+            if row["status"] != "new":
+                raise OrderError(409, "kitchen_started", "The kitchen has already started on this order, so it cannot be changed now. Anything you add goes on a new order.")
         ts = now(settings).isoformat(timespec="seconds")
         if not qty_by_id:
-            conn.execute("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", (ts, order_id))
+            conn.execute("UPDATE orders SET status = 'cancelled', updated_at = ?, updated_by = ? WHERE id = ?", (ts, by, order_id))
         else:
             current = {r["item_id"]: (r["qty"], r["price"], r["name"], r["no_gst"]) for r in conn.execute(
                 "SELECT item_id, qty, price, name, no_gst FROM order_items WHERE order_id = ?", (order_id,))}
@@ -200,8 +220,8 @@ def edit_order(conn: sqlite3.Connection, settings: Settings, order_id: int, edit
             conn.execute("DELETE FROM order_items WHERE order_id = ?", (order_id,))
             conn.executemany("INSERT INTO order_items (order_id, item_id, name, price, qty, no_gst) VALUES (?,?,?,?,?,?)",
                              [(order_id, *line) for line in lines])
-            conn.execute("UPDATE orders SET subtotal = ?, gst = ?, total = ?, updated_at = ?, printed = 0 WHERE id = ?",
-                         (subtotal, gst, subtotal + gst, ts, order_id))
+            conn.execute("UPDATE orders SET subtotal = ?, gst = ?, total = ?, updated_at = ?, updated_by = ?, printed = 0 WHERE id = ?",
+                         (subtotal, gst, subtotal + gst, ts, by, order_id))
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
@@ -253,7 +273,8 @@ def _bill_view(conn: sqlite3.Connection, settings: Settings, bill: sqlite3.Row) 
         "status": bill["status"],
         "opened_at": bill["opened_at"],
         "rounds": [
-            {"id": o["id"], "token": o["token"], "status": o["status"], "created_label": o["created_label"], "items": o["items"], "total": o["total"]}
+            {"id": o["id"], "token": o["token"], "status": o["status"], "created_label": o["created_label"], "items": o["items"], "total": o["total"],
+             "name": o["name"], "source": o["source"], "updated_by": o["updated_by"]}
             for o in orders
         ],
         "items": list(combined.values()),
@@ -270,7 +291,7 @@ def public_bill(bill: dict) -> dict:
     the bill amount is given by staff when the guests pay."""
     hidden = {"guests", "subtotal", "gst", "gst_percent", "total"}
     view = {k: v for k, v in bill.items() if k not in hidden}
-    view["rounds"] = [{k: v for k, v in r.items() if k != "total"} for r in bill["rounds"]]
+    view["rounds"] = [{k: v for k, v in r.items() if k not in ("total", "name")} for r in bill["rounds"]]
     return view
 
 

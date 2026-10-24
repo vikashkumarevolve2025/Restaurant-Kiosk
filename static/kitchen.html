@@ -147,8 +147,9 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; marg
     var cancelArmed = armed[o.id];
     return '<article class="tk' + (late ? " late" : "") + (fresh ? " fresh" : "") + '" data-id="' + o.id + '">' +
       '<div class="tkhead"><span class="tok">#' + o.token + '</span><span class="where">' + esc(o.type_label) + '</span></div>' +
-      (o.updated_at ? '<div class="upd">Updated by guest</div>' : '') +
-      '<div class="who">' + esc(o.name) + ' &middot; ' + esc(o.phone) + ' &middot; <span class="age">' + m + ' min</span></div>' +
+      (o.updated_at ? '<div class="upd">Updated by ' + esc(o.updated_by || "guest") + '</div>' : '') +
+      (o.source === "waiter" ? '<div class="note">Taken by waiter</div>' : '') +
+      '<div class="who">' + esc(o.name) + (/^\d+$/.test(o.phone) ? ' &middot; ' + esc(o.phone) : '') + ' &middot; <span class="age">' + m + ' min</span></div>' +
       '<ul class="lines">' + o.items.map(function (i) { return '<li><b>' + i.qty + 'x</b><span>' + esc(i.name) + '</span></li>'; }).join("") + '</ul>' +
       '<div class="acts"><button class="btn ' + next[2] + '" data-act="status" data-to="' + next[1] + '" type="button">' + next[0] + '</button>' +
       '<button class="btn" data-act="print" type="button">Reprint</button>' +

@@ -88,11 +88,12 @@ h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.4rem
 @media (prefers-reduced-motion: reduce) { .spin, .face { animation: none; } }
 .section-title { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; margin: 0 0 12px; }
 
-.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; align-items: start; }
 .role { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
 .role.guest { border-top: 5px solid var(--accent); }
 .role.staff { border-top: 5px solid var(--action); }
 .role.owner { border-top: 5px solid var(--ink); }
+.role.waiter { border-top: 5px solid #b7791f; }
 .who { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
 .role h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.01em; line-height: 1.05; margin: 2px 0 0; }
 .role p.desc { color: var(--muted); margin: 0; }
@@ -154,6 +155,17 @@ form.pin input { width: 100%; font-size: 1.25rem; letter-spacing: 0.2em; padding
       </form>
     </section>
 
+    <section class="role waiter" aria-labelledby="wH">
+      <div><p class="who">Waiters</p><h2 id="wH">Take orders</h2></div>
+      <ul class="can"><li>See every table and its orders</li><li>Take orders for guests at the table</li><li>Edit or add to a running order</li><li>Print the bill, close the table when paid</li></ul>
+      <form class="pin" data-role="waiter" novalidate>
+        <label for="wPin">Staff PIN</label>
+        <input id="wPin" type="password" inputmode="numeric" autocomplete="off">
+        <p class="err" role="alert"></p>
+        <button class="cta" type="submit" style="background:#b7791f;color:#1a1205">Open waiter screen</button>
+      </form>
+    </section>
+
     <section class="role owner" aria-labelledby="oH">
       <div><p class="who">Owner</p><h2 id="oH">Admin</h2></div>
       <ul class="can"><li>Edit menu and prices</li><li>Sales reports and order history</li><li>Customer list, printer test</li></ul>
@@ -177,6 +189,7 @@ form.pin input { width: 100%; font-size: 1.25rem; letter-spacing: 0.2em; padding
   // Each screen reads its PIN from this tab's session storage and signs itself in.
   var ROLES = {
     kitchen: { check: "/api/orders?status=active", key: "kpin", go: "/kitchen" },
+    waiter: { check: "/api/bills", key: "kpin", go: "/waiter" },
     admin: { check: "/api/admin/settings", key: "apin", go: "/admin" }
   };
 

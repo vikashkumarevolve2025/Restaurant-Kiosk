@@ -116,6 +116,14 @@ def init_db(path: str) -> None:
         conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         if conn.execute("PRAGMA user_version").fetchone()[0] < 5:
             conn.execute("PRAGMA user_version = 5")
+        # v6: who placed an order (guest or waiter) and who last changed it, shown on the kitchen screen.
+        ocols = {r["name"] for r in conn.execute("PRAGMA table_info(orders)")}
+        if "source" not in ocols:
+            conn.execute("ALTER TABLE orders ADD COLUMN source TEXT NOT NULL DEFAULT 'guest'")
+        if "updated_by" not in ocols:
+            conn.execute("ALTER TABLE orders ADD COLUMN updated_by TEXT")
+        if conn.execute("PRAGMA user_version").fetchone()[0] < 6:
+            conn.execute("PRAGMA user_version = 6")
         if conn.execute("SELECT COUNT(*) FROM menu_items").fetchone()[0] == 0:
             order = {c: i for i, c in enumerate(CATEGORIES)}
             rows = [

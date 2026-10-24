@@ -21,7 +21,7 @@ from . import orders as svc
 from . import runtime_config as rc
 from .config import BASE_DIR, Settings
 from .db import connect, init_db
-from .models import AvailabilityIn, ImageIn, PaymentIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
+from .models import AvailabilityIn, ImageIn, PaymentIn, StaffEditIn, WaiterOrderIn, MenuItemIn, MenuItemPatch, MoveIn, OrderEditIn, OrderIn, PHONE_RE, SettingsIn, SetupIn, StatusIn
 from .printer import PrinterError, list_system_printers, print_bill, print_order
 
 log = logging.getLogger("karam")
@@ -204,6 +204,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/orders", dependencies=[Depends(require_staff)])
     def list_orders(status: str = Query("active", pattern="^(active|all)$"), date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"), conn=Depends(get_db)):
         return {"orders": svc.list_orders(conn, s, status, date)}
+
+    # ---------- waiter (staff PIN) ----------
+    @app.post("/api/staff/orders", status_code=201, dependencies=[Depends(require_staff)])
+    def waiter_order(payload: WaiterOrderIn, background: BackgroundTasks, conn=Depends(get_db)):
+        fallback = f"Table {payload.table} guest" if payload.order_type == "Dine in" and payload.table else "Walk-in guest"
+        data = OrderIn.model_construct(name=payload.name or fallback, phone=payload.phone or svc.WALKIN,
+                                       order_type=payload.order_type, table=payload.table, items=payload.items)
+        try:
+            order = svc.create_order(conn, s, data, source="waiter")
+        except svc.OrderError as e:
+            fail(e)
+        background.add_task(print_task, order)
+        order.pop("edit_key", None)   # waiters edit with the staff PIN instead
+        return order
+
+    @app.put("/api/staff/orders/{order_id}/items", dependencies=[Depends(require_staff)])
+    def waiter_edit(order_id: int, body: StaffEditIn, background: BackgroundTasks, conn=Depends(get_db)):
+        try:
+            order = svc.edit_order(conn, s, order_id, None, body.items, by="waiter")
+        except svc.OrderError as e:
+            fail(e)
+        if order["status"] != "cancelled":
+            background.add_task(print_task, order)
+        return order
 
     @app.get("/api/stats/today", dependencies=[Depends(require_staff)])
     def stats(conn=Depends(get_db)):
@@ -424,6 +448,10 @@ main{{max-width:720px;margin:0 auto}} li{{margin:6px 0;overflow-wrap:anywhere}} 
     @app.get("/setup", include_in_schema=False)
     def setup_page():
         return FileResponse(STATIC / "setup.html")
+
+    @app.get("/waiter", include_in_schema=False)
+    def waiter_page():
+        return FileResponse(STATIC / "waiter.html")
 
     @app.get("/kitchen", include_in_schema=False)
     def kitchen_page():

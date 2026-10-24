@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Waiter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Waiter screen: phone-first. Floor of tables -> one table (its orders, edit, bill) -> quick menu to add dishes. */
+:root {
+  --bg: #f6f1ec; --surface: #fffdfb; --ink: #231a16; --muted: #6f625b; --line: #e4d9d0;
+  --accent: #b83a0b; --accent-soft: #fbe6da; --action: #1f6f4a; --action-ink: #fff; --warn: #b7791f; --warn-soft: #fbefd5;
+  --ok-soft: #e1f1e8; --bad: #b3261e; --veg: #1f8a4c; --nonveg: #b3261e;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+    --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13; --warn: #e9b44c; --warn-soft: #3a2c12;
+    --ok-soft: #173326; --bad: #ef6a60; --veg: #43b571; --nonveg: #ef6a60; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13; --warn: #e9b44c; --warn-soft: #3a2c12;
+  --ok-soft: #173326; --bad: #ef6a60; --veg: #43b571; --nonveg: #ef6a60; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font-body);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 110px max(16px, env(safe-area-inset-left, 0px)); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 900px; margin: 0 auto; }
+h1, h2 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.35rem; }
+.muted { color: var(--muted); }
+.err { color: var(--bad); min-height: 1.3em; margin: 6px 0; }
+.ok { color: var(--action); font-weight: 700; }
+
+.btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 0 16px; min-height: 46px; font-weight: 700; }
+.btn.go { background: var(--action); border-color: var(--action); color: var(--action-ink); }
+.btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--bad); }
+.btn.sm { min-height: 38px; padding: 0 12px; font-size: 0.9rem; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 0 12px; position: sticky; top: 0; background: var(--bg); z-index: 5; }
+.top .actions { display: flex; gap: 8px; }
+
+/* floor */
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 12px; }
+.tbl { text-align: left; background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 6px; min-height: 118px; }
+.tbl b { font-family: var(--font-display); font-size: 1.5rem; line-height: 1; }
+.tbl.busy { border-color: var(--action); }
+.tbl.ask { border-color: var(--warn); background: var(--warn-soft); }
+.chip { justify-self: start; font-size: 0.72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--line); color: var(--muted); }
+.chip.busy { background: var(--ok-soft); color: var(--action); }
+.chip.ask { background: var(--warn); color: #1a1205; }
+.tbl .sum { font-size: 0.9rem; color: var(--muted); }
+.tbl .sum strong { color: var(--ink); }
+
+/* table view */
+.head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.round { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
+.rhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rhead b { font-family: var(--font-display); font-size: 1.1rem; }
+.who { font-size: 0.85rem; color: var(--muted); }
+.st { font-size: 0.72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.st.preparing { background: var(--warn-soft); color: var(--warn); }
+.st.ready, .st.served { background: var(--ok-soft); color: var(--action); }
+.line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.line:last-of-type { border-bottom: 0; }
+.line .nm { min-width: 0; overflow-wrap: anywhere; }
+.amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-left: 4px; }
+.ract { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ract .btn { flex: 1 1 120px; }
+.totals { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 12px; display: grid; gap: 4px; font-variant-numeric: tabular-nums; }
+.totals div { display: flex; justify-content: space-between; }
+.totals .grand { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; border-top: 2px solid var(--ink); padding-top: 6px; margin-top: 4px; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 20;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.bar .in { max-width: 900px; margin: 0 auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.bar .btn { flex: 1 1 140px; }
+
+/* steppers */
+.step { display: inline-flex; align-items: center; border: 1.5px solid var(--action); border-radius: 10px; overflow: hidden; flex: none; }
+.step button { width: 42px; height: 42px; border: 0; background: transparent; font-size: 1.3rem; font-weight: 700; color: var(--action); }
+.step output { min-width: 26px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.addbtn { min-width: 84px; }
+
+/* picker */
+.picker .search { width: 100%; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); margin: 6px 0 10px; }
+.cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; position: sticky; top: 70px; background: var(--bg); z-index: 4; }
+.cats::-webkit-scrollbar { display: none; }
+.cat { flex: none; border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 14px; font-weight: 700; }
+.cat[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mi { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mi img, .mi .ph { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; background: var(--line); }
+.mi .info { flex: 1; min-width: 0; }
+.mi .info b { display: block; overflow-wrap: anywhere; }
+.mi .info span { font-size: 0.85rem; color: var(--muted); }
+.mi.off { opacity: .5; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid var(--veg); margin-right: 6px; vertical-align: 1px; }
+.dot.nv { border-color: var(--nonveg); }
+details.guest { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; }
+details.guest summary { font-weight: 700; cursor: pointer; }
+details.guest label { display: block; font-size: 0.85rem; font-weight: 700; margin: 10px 0 4px; }
+details.guest input { width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); }
+.seg { display: flex; gap: 8px; margin: 4px 0 12px; }
+.seg button { flex: 1; border: 1.5px solid var(--line); background: var(--surface); border-radius: 10px; min-height: 44px; font-weight: 700; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+.gate { max-width: 340px; margin: 14vh auto; display: grid; gap: 12px; }
+.gate input { font-size: 1.3rem; padding: 14px; letter-spacing: .2em; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); }
+.empty { color: var(--muted); border: 1.5px dashed var(--line); border-radius: 12px; padding: 18px; text-align: center; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<form class="gate" id="gate">
+  <h1>Waiter</h1>
+  <label for="pin" class="muted">Staff PIN</label>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+  <p class="err" id="gateErr" role="alert"></p>
+  <button class="btn go" type="submit">Open</button>
+  <a class="muted" href="/home" style="text-align:center">Back to home</a>
+</form>
+
+<div id="app" hidden>
+  <!-- Floor: every table at a glance -->
+  <section id="vFloor">
+    <div class="top"><h1>Tables</h1><div class="actions"><button class="btn sm" id="takeaway" type="button">Takeaway order</button><button class="btn sm" id="lockBtn" type="button">Lock</button></div></div>
+    <p class="err" id="netErr" role="alert"></p>
+    <div class="tables" id="tables"></div>
+  </section>
+
+  <!-- One table: its orders, edit them, bill -->
+  <section id="vTable" hidden>
+    <div class="top"><div class="head"><button class="btn sm" id="backFloor" type="button">← Tables</button><h2 id="tTitle"></h2><span id="tChip"></span></div></div>
+    <p class="ok" id="tMsg" role="status"></p>
+    <p class="err" id="tErr" role="alert"></p>
+    <div id="rounds"></div>
+    <div id="tTotals"></div>
+  </section>
+
+  <!-- Quick menu to add dishes -->
+  <section id="vPick" class="picker" hidden>
+    <div class="top"><div class="head"><button class="btn sm" id="backPick" type="button">← Back</button><h2 id="pTitle"></h2></div></div>
+    <div id="typeWrap" hidden><div class="seg" id="seg"><button type="button" data-v="Takeaway" aria-pressed="true">Takeaway</button></div></div>
+    <details class="guest" id="guest">
+      <summary>Guest name and number (optional)</summary>
+      <label for="gName">Name</label><input id="gName" maxlength="40" autocomplete="off" placeholder="For the slip and kitchen">
+      <label for="gPhone">Mobile number</label><input id="gPhone" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="10-digit number">
+    </details>
+    <input class="search" id="search" type="search" placeholder="Search dishes" aria-label="Search dishes">
+    <div class="cats" id="cats"></div>
+    <div id="menu"></div>
+    <p class="err" id="pErr" role="alert"></p>
+  </section>
+</div>
+</div>
+
+<div class="bar" id="bar" hidden><div class="in" id="barIn"></div></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var pin = "", MENU = [], CATS = [], TABLES = 3, bills = [], view = "floor", current = null, editing = null, cart = {}, cat = null, closeArmed = false, timer = null;
+  try { pin = sessionStorage.getItem("kpin") || ""; } catch (e) {}
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function inr(n) { return "₹" + Number(n).toLocaleString("en-IN"); }
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = { "Content-Type": "application/json", "X-Staff-Pin": pin };
+    return fetch(url, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) { var e = new Error(d.detail && d.detail.message ? d.detail.message : "Something went wrong."); e.status = r.status; throw e; }
+        return d;
+      });
+    });
+  }
+  function onErr(where) { return function (e) { if (e.status === 401) { lock(); return; } $(where).textContent = e.status === undefined ? "Cannot reach the server. Check the Wi-Fi and try again." : e.message; }; }
+
+  var STATUS = { new: "Sent to kitchen", preparing: "Being prepared", ready: "Ready", served: "Served" };
+  function billFor(t) { return bills.filter(function (b) { return b.table === t; })[0] || null; }
+
+  /* ---------- views ---------- */
+  function show(v) {
+    view = v;
+    ["vFloor", "vTable", "vPick"].forEach(function (id) { $(id).hidden = id !== { floor: "vFloor", table: "vTable", pick: "vPick" }[v]; });
+    renderBar(); window.scrollTo(0, 0);
+  }
+  function renderBar() {
+    var h = "";
+    if (view === "table") {
+      var b = billFor(current);
+      h = '<button class="btn go" data-bar="add" type="button">+ Add items</button>' +
+        (b ? '<button class="btn" data-bar="print" type="button">Print bill</button><button class="btn accent" data-bar="close" type="button">' + (closeArmed ? "Confirm: paid, close" : "Paid, close table") + '</button>' : "");
+    } else if (view === "pick") {
+      var n = 0, sum = 0;
+      Object.keys(cart).forEach(function (id) { var m = item(id); if (m) { n += cart[id]; sum += cart[id] * m.price; } });
+      h = '<button class="btn go" data-bar="send" type="button"' + (n ? "" : " disabled") + '>Send to kitchen' + (n ? " · " + n + (n === 1 ? " item" : " items") + " · " + inr(sum) : "") + '</button>';
+    }
+    $("bar").hidden = !h; $("barIn").innerHTML = h;
+  }
+
+  /* ---------- floor ---------- */
+  function renderFloor() {
+    var h = "";
+    for (var t = 1; t <= TABLES; t++) {
+      var b = billFor(t), cls = b ? (b.status === "bill_requested" ? "ask" : "busy") : "";
+      var cooking = b ? b.rounds.filter(function (r) { return r.status === "new" || r.status === "preparing"; }).length : 0;
+      h += '<button class="tbl ' + cls + '" data-t="' + t + '" type="button"><b>Table ' + t + '</b>' +
+        '<span class="chip ' + cls + '">' + (b ? (b.status === "bill_requested" ? "Wants the bill" : "Ordering") : "Free") + '</span>' +
+        (b ? '<span class="sum"><strong>' + inr(b.total) + '</strong> · ' + b.rounds.length + (b.rounds.length === 1 ? " order" : " orders") + (cooking ? " · " + cooking + " in kitchen" : "") + '</span>' : '<span class="sum">Tap to take an order</span>') +
+        '</button>';
+    }
+    $("tables").innerHTML = h;
+  }
+
+  /* ---------- one table ---------- */
+  function openTable(t) { current = t; editing = null; closeArmed = false; $("tMsg").textContent = ""; $("tErr").textContent = ""; renderTable(); show("table"); }
+  function renderTable() {
+    var b = billFor(current);
+    $("tTitle").textContent = "Table " + current;
+    $("tChip").innerHTML = b ? '<span class="chip ' + (b.status === "bill_requested" ? "ask" : "busy") + '">' + (b.status === "bill_requested" ? "Wants the bill" : "Ordering") + '</span>' : '<span class="chip">Free</span>';
+    if (!b || !b.rounds.length) { $("rounds").innerHTML = '<div class="empty">No orders yet. Tap <b>+ Add items</b> to take this table\'s order.</div>'; $("tTotals").innerHTML = ""; renderBar(); return; }
+    if (editing && !b.rounds.some(function (r) { return r.id === editing.id; })) editing = null;
+    $("rounds").innerHTML = b.rounds.map(function (r) {
+      var ed = editing && editing.id === r.id, lines;
+      if (ed) {
+        lines = Object.keys(editing.qty).map(function (id) {
+          var m = item(id) || { name: editing.names[id] || id, price: editing.prices[id] || 0 };
+          return '<div class="line"><span class="nm">' + esc(m.name) + '<br><span class="muted" style="font-size:.85rem">' + inr(editing.prices[id] || m.price) + ' each</span></span>' +
+            '<span class="step"><button type="button" data-eid="' + esc(id) + '" data-d="-1" aria-label="One less">−</button><output>' + editing.qty[id] + '</output><button type="button" data-eid="' + esc(id) + '" data-d="1" aria-label="One more">+</button></span></div>';
+        }).join("");
+        var empty = !Object.keys(editing.qty).some(function (k) { return editing.qty[k] > 0; });
+        lines += '<div class="ract"><button class="btn" data-ract="discard" type="button">Keep as it was</button><button class="btn ' + (empty ? "danger" : "go") + '" data-ract="save" type="button">' + (empty ? "Remove this order" : "Save changes") + '</button></div>' +
+          (r.status !== "new" ? '<p class="muted" style="font-size:.85rem;margin:8px 0 0">The kitchen has started this order. Tell them about the change too; they also get an updated slip.</p>' : "");
+      } else {
+        lines = r.items.map(function (i) {
+          return '<div class="line"><span class="nm">' + i.qty + ' × ' + esc(i.name) + (i.no_gst ? '<span class="tag">No GST</span>' : '') + '</span><span class="amt">' + inr(i.line) + '</span></div>';
+        }).join("") + (r.status !== "served" ? '<div class="ract"><button class="btn sm" data-ract="edit" type="button">Edit this order</button></div>' : "");
+      }
+      var by = r.source === "waiter" ? "Taken by waiter" : "Ordered by guest";
+      if (r.updated_by) by += " · changed by " + r.updated_by;
+      return '<section class="round" data-rid="' + r.id + '"><div class="rhead"><b>Order #' + r.token + '</b><span class="st ' + r.status + '">' + (STATUS[r.status] || r.status) + '</span></div>' +
+        '<div class="who">' + esc(r.name) + ' · ' + by + ' · ' + esc(r.created_label.split(", ").pop()) + '</div>' + lines + '</section>';
+    }).join("");
+    $("tTotals").innerHTML = '<div class="totals"><div><span>Subtotal</span><span>' + inr(b.subtotal) + '</span></div><div><span>GST ' + b.gst_percent + '%</span><span>' + inr(b.gst) + '</span></div><div class="grand"><span>Bill total</span><span>' + inr(b.total) + '</span></div></div>';
+    renderBar();
+  }
+  function startEdit(id) {
+    var r = billFor(current).rounds.filter(function (x) { return x.id === id; })[0], q = {}, names = {}, prices = {};
+    r.items.forEach(function (i) { q[i.id] = i.qty; names[i.id] = i.name; prices[i.id] = i.price; });
+    editing = { id: id, qty: q, names: names, prices: prices }; $("tMsg").textContent = ""; renderTable();
+  }
+  function saveEdit(btn) {
+    var items = Object.keys(editing.qty).filter(function (k) { return editing.qty[k] > 0; }).map(function (k) { return { id: k, qty: editing.qty[k] }; });
+    btn.disabled = true; $("tErr").textContent = "";
+    api("/api/staff/orders/" + editing.id + "/items", { method: "PUT", body: JSON.stringify({ items: items }) }).then(function (o) {
+      editing = null; $("tMsg").textContent = o.status === "cancelled" ? "Order #" + o.token + " removed." : "Order #" + o.token + " updated. The kitchen has the new list.";
+      return refresh();
+    }).catch(function (e) { btn.disabled = false; onErr("tErr")(e); });
+  }
+
+  /* ---------- quick menu ---------- */
+  function item(id) { return MENU.filter(function (m) { return m.id === id; })[0]; }
+  function openPick(table) {
+    cart = {}; cat = CATS[0]; $("search").value = ""; $("pErr").textContent = "";
+    $("gName").value = ""; $("gPhone").value = ""; $("guest").open = !table;
+    $("pTitle").textContent = table ? "Add to Table " + table : "Takeaway order";
+    $("typeWrap").hidden = !!table;
+    current = table; renderPick(); show("pick");
+  }
+  function renderPick() {
+    var q = $("search").value.trim().toLowerCase();
+    $("cats").hidden = !!q;
+    $("cats").innerHTML = CATS.map(function (c) { return '<button class="cat" type="button" data-c="' + esc(c) + '" aria-pressed="' + (c === cat) + '">' + esc(c) + '</button>'; }).join("");
+    var list = MENU.filter(function (m) { return q ? m.name.toLowerCase().indexOf(q) >= 0 : m.category === cat; });
+    $("menu").innerHTML = list.map(function (m) {
+      var n = cart[m.id] || 0;
+      var ctl = !m.available ? '<span class="muted" style="font-size:.8rem;font-weight:700">SOLD OUT</span>'
+        : n ? '<span class="step"><button type="button" data-id="' + esc(m.id) + '" data-d="-1" aria-label="One less ' + esc(m.name) + '">−</button><output>' + n + '</output><button type="button" data-id="' + esc(m.id) + '" data-d="1" aria-label="One more ' + esc(m.name) + '">+</button></span>'
+        : '<button class="btn sm go addbtn" type="button" data-id="' + esc(m.id) + '" data-d="1">Add</button>';
+      return '<div class="mi' + (m.available ? "" : " off") + '">' + (m.image ? '<img src="' + esc(m.image) + '" alt="" loading="lazy">' : '<span class="ph"></span>') +
+        '<div class="info"><b><span class="dot' + (m.veg ? "" : " nv") + '"></span>' + esc(m.name) + '</b><span>' + inr(m.price) + (m.no_gst ? " · No GST" : "") + '</span></div>' + ctl + '</div>';
+    }).join("") || '<div class="empty">No dishes match.</div>';
+    renderBar();
+  }
+  function send(btn) {
+    var items = Object.keys(cart).map(function (id) { return { id: id, qty: cart[id] }; });
+    if (!items.length) return;
+    var body = { items: items, name: $("gName").value.trim(), phone: $("gPhone").value.replace(/\D/g, ""),
+      order_type: current ? "Dine in" : "Takeaway", table: current || null };
+    btn.disabled = true; $("pErr").textContent = "";
+    api("/api/staff/orders", { method: "POST", body: JSON.stringify(body) }).then(function (o) {
+      cart = {};
+      if (current) { return refresh().then(function () { openTable(current); $("tMsg").textContent = "Order #" + o.token + " sent to the kitchen."; }); }
+      show("floor"); $("netErr").className = "ok"; $("netErr").textContent = "Takeaway order #" + o.token + " sent to the kitchen (" + inr(o.total) + ").";
+      setTimeout(function () { $("netErr").className = "err"; $("netErr").textContent = ""; }, 6000);
+    }).catch(function (e) { btn.disabled = false; onErr("pErr")(e); if (e.status === 409) loadMenu().then(renderPick); });
+  }
+
+  /* ---------- data ---------- */
+  function loadMenu() {
+    return fetch("/api/menu").then(function (r) { return r.json(); }).then(function (d) { MENU = d.items; CATS = d.categories; TABLES = d.shop.tables; if (CATS.indexOf(cat) < 0) cat = CATS[0]; });
+  }
+  function refresh() {
+    return api("/api/bills").then(function (d) {
+      bills = d.bills; $("netErr").className === "ok" || ($("netErr").textContent = "");
+      if (view === "floor") renderFloor();
+      if (view === "table" && !editing) renderTable();
+    }).catch(onErr("netErr"));
+  }
+  function start() {
+    $("gate").hidden = true; $("app").hidden = false;
+    loadMenu().then(refresh).then(function () { renderFloor(); show("floor"); });
+    clearInterval(timer); timer = setInterval(function () { if (view !== "pick") refresh(); }, 5000);
+  }
+  function lock() {
+    clearInterval(timer); pin = ""; try { sessionStorage.removeItem("kpin"); } catch (e) {}
+    $("app").hidden = true; $("bar").hidden = true; $("gate").hidden = false; $("pin").value = ""; $("pin").focus();
+  }
+
+  /* ---------- events ---------- */
+  $("gate").addEventListener("submit", function (e) {
+    e.preventDefault(); pin = $("pin").value;
+    api("/api/bills").then(function () { try { sessionStorage.setItem("kpin", pin); } catch (x) {} $("gateErr").textContent = ""; start(); })
+      .catch(function (err) { $("gateErr").textContent = err.status === 401 ? "Wrong PIN." : (err.status === 429 ? err.message : "Cannot reach the server."); });
+  });
+  $("lockBtn").addEventListener("click", lock);
+  $("takeaway").addEventListener("click", function () { openPick(null); });
+  $("tables").addEventListener("click", function (e) { var b = e.target.closest("[data-t]"); if (b) openTable(parseInt(b.dataset.t, 10)); });
+  $("backFloor").addEventListener("click", function () { renderFloor(); show("floor"); refresh(); });
+  $("backPick").addEventListener("click", function () { if (current) { renderTable(); show("table"); } else { renderFloor(); show("floor"); } });
+  $("rounds").addEventListener("click", function (e) {
+    var s = e.target.closest("[data-eid]");
+    if (s && editing) { var k = s.dataset.eid; editing.qty[k] = Math.max(0, Math.min(20, (editing.qty[k] || 0) + parseInt(s.dataset.d, 10))); renderTable(); return; }
+    var a = e.target.closest("[data-ract]"); if (!a) return;
+    var id = parseInt(a.closest("[data-rid]").dataset.rid, 10);
+    if (a.dataset.ract === "edit") startEdit(id);
+    else if (a.dataset.ract === "discard") { editing = null; renderTable(); }
+    else if (a.dataset.ract === "save") saveEdit(a);
+  });
+  $("cats").addEventListener("click", function (e) { var b = e.target.closest("[data-c]"); if (b) { cat = b.dataset.c; renderPick(); } });
+  $("search").addEventListener("input", renderPick);
+  $("gPhone").addEventListener("input", function () { this.value = this.value.replace(/\D/g, "").slice(0, 10); });
+  $("menu").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-id]"); if (!b) return;
+    var id = b.dataset.id, q = Math.max(0, Math.min(20, (cart[id] || 0) + parseInt(b.dataset.d, 10)));
+    if (q) cart[id] = q; else delete cart[id];
+    renderPick();
+  });
+  $("bar").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-bar]"); if (!b) return;
+    var act = b.dataset.bar;
+    if (act === "add") openPick(current);
+    else if (act === "send") send(b);
+    else if (act === "print") {
+      b.disabled = true;
+      api("/api/tables/" + current + "/bill/print", { method: "POST" }).then(function () { b.textContent = "Bill printed"; $("tMsg").textContent = "Bill sent to the printer."; })
+        .catch(function (err) { b.disabled = false; onErr("tErr")(err); });
+    } else if (act === "close") {
+      if (!closeArmed) { closeArmed = true; renderBar(); setTimeout(function () { closeArmed = false; if (view === "table") renderBar(); }, 4000); return; }
+      closeArmed = false; b.disabled = true;
+      api("/api/tables/" + current + "/bill/close", { method: "POST" }).then(function (d) {
+        return refresh().then(function () { renderFloor(); show("floor"); $("netErr").className = "ok"; $("netErr").textContent = "Table " + d.bill.table + " paid and closed (" + inr(d.bill.total) + ").";
+          setTimeout(function () { $("netErr").className = "err"; $("netErr").textContent = ""; }, 6000); });
+      }).catch(function (err) { b.disabled = false; onErr("tErr")(err); });
+    }
+  });
+
+  if (!/^https?:$/.test(location.protocol)) { $("gateErr").textContent = "This page was opened as a file. Type http://localhost:8080/waiter into your browser instead."; return; }
+  if (pin) api("/api/bills").then(start).catch(function () { lock(); });
+  else $("pin").focus();
+})();
+</script>
+</body>
+</html>

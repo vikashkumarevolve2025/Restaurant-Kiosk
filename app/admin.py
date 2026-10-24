@@ -287,7 +287,7 @@ def sales_report(conn: sqlite3.Connection, settings: Settings, start: str | None
     by_table = [dict(r) for r in conn.execute(
         f"SELECT 'Table ' || table_no AS label, COUNT(*) AS orders, SUM(total) AS sales FROM orders WHERE {live} AND table_no IS NOT NULL GROUP BY table_no ORDER BY table_no", (s, e))]
     repeat = conn.execute(
-        f"SELECT COUNT(DISTINCT phone) FROM orders WHERE {live}", (s, e)).fetchone()[0]
+        f"SELECT COUNT(DISTINCT phone) FROM orders WHERE {live} AND phone NOT IN ('walkin', 'deleted')", (s, e)).fetchone()[0]
     return {
         "start": s, "end": e,
         "orders": t["n"], "subtotal": t["sub"], "gst": t["gst"], "sales": t["total"],
@@ -334,7 +334,7 @@ def orders_csv(orders: list[dict]) -> str:
 def list_customers(conn: sqlite3.Connection, q: str | None, limit: int) -> list[dict]:
     sql = ("SELECT c.phone, c.name, c.order_count, c.first_seen, c.last_seen, "
            "COALESCE(SUM(CASE WHEN o.status != 'cancelled' THEN o.total END), 0) AS spend "
-           "FROM customers c LEFT JOIN orders o ON o.phone = c.phone WHERE c.phone != 'deleted'")
+           "FROM customers c LEFT JOIN orders o ON o.phone = c.phone WHERE c.phone NOT IN ('deleted', 'walkin')")
     args: list = []
     if q and q.strip():
         like = "%" + q.strip().replace("%", "").replace("_", "") + "%"

@@ -7,6 +7,7 @@ FastAPI and SQLite, no build step.
 |---|---|---|
 | `/home` | Landing page: one card per user. Customers open the menu; kitchen staff and the owner type their PIN there and land in their screen already signed in. | Everyone |
 | `/` | Menu, cart, name and phone, order slip. `/?table=2` pre-selects Table 2. | Guests (kiosk or phone) |
+| `/waiter` | Waiter / order taker on a phone: every table at a glance, take orders for guests (name and number optional, dine in or takeaway), edit or add to any running order until it is served, print the bill, close the table when paid. Asks for the staff PIN. | Waiters |
 | `/kitchen` | Live order board, sound alert, mark items sold out. Asks for the staff PIN. | Kitchen |
 | `/admin` | Owner screen: edit menu and prices, sales reports, order history and CSV, guests, printer test. Asks for the owner PIN. | Owner |
 | `/tables` | Printable QR card for each table. | You, once |
