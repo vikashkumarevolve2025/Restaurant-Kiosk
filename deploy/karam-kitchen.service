@@ -1,0 +1,20 @@
+[Unit]
+Description=Karam Kitchen ordering server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=karam
+Group=karam
+WorkingDirectory=/opt/karam-kitchen
+EnvironmentFile=/opt/karam-kitchen/.env
+# One process only: the rate limiter keeps its counters in memory.
+ExecStart=/opt/karam-kitchen/.venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --workers 1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/karam-kitchen/data /opt/karam-kitchen/prints
+
+[Install]
+WantedBy=multi-user.target

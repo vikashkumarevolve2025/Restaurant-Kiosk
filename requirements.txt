@@ -1,0 +1,5 @@
+fastapi>=0.110
+uvicorn>=0.29
+segno>=1.6
+python-dotenv>=1.0
+tzdata>=2024.1

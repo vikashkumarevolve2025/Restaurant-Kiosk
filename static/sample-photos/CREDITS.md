@@ -1,0 +1,28 @@
+# Sample dish photos
+
+These photos come from Wikimedia Commons and are used under the licence named next to each one (Creative Commons, CC0 or public domain). Keep this file and the /credits page if you keep the photos. CC BY-SA photos you modify must be shared under the same licence.
+
+- **Lemon Chicken** (s2.jpg): Photo: Willis Lam, CC BY-SA 2.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Tenglong_Chinese_Restaurant_Lemon_Chicken_(37577556406).jpg)
+- **Chicken Lollipop** (s1.jpg): Photo: Peiling Tan from Singapore, Singapore, CC BY 2.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chicken_lollipop_in_Goa.jpg)
+- **Chilly Chicken** (s3.jpg): Photo: Gaurav Dhwaj Khadka, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chicken_Chilli_1.jpg)
+- **Chicken Kabab** (s4.jpg): Photo: Kamalica, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Murg_tangri_kebab.jpg)
+- **Pepper Chicken** (s5.jpg): Photo: Vis M, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Pepper_chicken_2.jpg)
+- **Chicken 65** (s6.jpg): Photo: Amiyashrivastava, CC BY-SA 3.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chicken_65_(Dish).jpg)
+- **Nati Chicken Fry** (s7.jpg): Photo: M N Swarna, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chettinad_Chicken_Fry-Home-AndhraPradesh-005.jpg)
+- **Mutton Fry** (s8.jpg): Photo: Krishna Pradhan, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Dry-Fry_Mutton.jpg)
+- **Paneer Fry** (s9.jpg): Photo: Gpkp, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Paneer_Chilli,_Bengaluru_(2026)_01.jpg)
+- **Gobi 65** (s10.jpg): Photo: scaredy_kat, CC BY 2.5, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Gobi_manchurian.jpg)
+- **Chicken Dum Biryani** (b1.jpg): Photo: Explojana, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chicken_Dum_Biryani_01.jpg)
+- **Mutton Biryani** (b2.jpg): Photo: Bhaskaranaidu, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mutton_biryani.JPG)
+- **Egg Biryani** (b3.jpg): Photo: Ravi Dwivedi, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Hyderabadi_egg_biryani.jpg)
+- **Veg Biryani** (b4.jpg): Photo: Phadke09, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Vegetable_Biryani_IMG_001.jpg)
+- **Paneer Biryani** (b5.jpg): Photo: Kasyap, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Panner_Vegetable_Hyderabad_Biryani.jpg)
+- **Andhra Chicken Curry** (c1.jpg): Photo: Karteeki4u, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Andhra_kodi_kura_(chicken_gravy).JPG)
+- **Butter Chicken** (c2.jpg): Photo: stu_spivack, CC BY-SA 2.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Chicken_makhani.jpg)
+- **Paneer Butter Masala** (c3.jpg): Photo: Gannu03, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Paneer_butter_masala_3.jpg)
+- **Dal Tadka** (c4.jpg): Photo: AugustineKajur, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Dal_Tadka-Delhi.jpg)
+- **Steamed Rice** (d1.jpg): Photo: Anna Frodesiak, CC0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Steamed_rice_in_bowl_01.jpg)
+- **Butter Naan** (d2.jpg): Photo: Ravi Dwivedi, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Butter_Naan_Flatbread_from_North_India.jpg)
+- **Onion Raita** (d3.jpg): Photo: Deviselvam, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Onion_Raita.jpg)
+- **Gulab Jamun** (d4.jpg): Photo: Suyash.dwivedi, CC BY-SA 4.0, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Two_Gulab_Jamun_in_a_plate_01.jpg)
+- **Soft Drink** (d5.jpg): Photo: pic_p_ter, Public domain, via Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Glass_cola.jpg)

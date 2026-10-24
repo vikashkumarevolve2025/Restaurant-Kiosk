@@ -1,0 +1,13 @@
+.env
+data/
+prints/
+__pycache__/
+.pytest_cache/
+.venv/
+
+dist/
+build/
+packaging/Output/
+smoketest-data/
+qr-codes/
+.claude/

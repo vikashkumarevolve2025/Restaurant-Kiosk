@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kitchen Orders</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Kitchen screen: dark, three columns (New, Preparing, Ready), big touch targets. */
+:root {
+  --bg: #15110e; --surface: #211a16; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --on-accent: #1a0d06; --ok: #3fae7a; --warn: #e9b44c; --bad: #ef6a60;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 var(--font-body); padding: 16px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; margin: 0; }
+.bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.stats { display: flex; gap: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-size: 1.2rem; }
+.tools { display: flex; gap: 8px; }
+.btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 16px; min-height: 44px; font-weight: 700; }
+.btn.go { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #0d1a13; }
+.btn.danger { color: var(--bad); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+.col h2 { font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; display: flex; justify-content: space-between; }
+.stack { display: grid; gap: 12px; min-height: 80px; }
+.empty { color: var(--muted); border: 1.5px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; }
+.tk { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.tk.late { border-color: var(--warn); }
+.tk.fresh { animation: flash 1.2s ease-out 2; }
+@keyframes flash { 50% { background: #3a2a1d; } }
+.tkhead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.tok { font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; line-height: 1; }
+.where { font-weight: 700; color: var(--accent); text-align: right; }
+.who { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.age { font-variant-numeric: tabular-nums; }
+.tk.late .age { color: var(--warn); font-weight: 700; }
+.lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 1.05rem; }
+.lines li { display: grid; grid-template-columns: 2.4em 1fr; gap: 6px; }
+.lines b { color: var(--accent); }
+.acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.acts .btn:first-child { flex: 1 1 140px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+.panel h2 { margin: 0 0 8px; font-size: 1rem; }
+.menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 6px 14px; }
+.menu label { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); min-height: 44px; }
+.menu input { width: 22px; height: 22px; accent-color: var(--ok); }
+.menu .off { color: var(--bad); }
+.upd { justify-self: start; background: var(--warn); color: #1a1205; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; padding: 3px 8px; }
+.bills { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.bill { background: var(--bg); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.bill.ask { border-color: var(--warn); }
+.bill .tkhead .tok { font-size: 1.6rem; }
+.bill .flag { color: var(--warn); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.8rem; }
+.bill .money { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.gate { max-width: 340px; margin: 12vh auto; display: grid; gap: 12px; }
+.gate input { font: inherit; font-size: 1.3rem; padding: 14px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); letter-spacing: 0.2em; }
+.err { color: var(--bad); min-height: 1.3em; margin: 0; }
+.note { color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .tk.fresh { animation: none; } }
+</style>
+</head>
+<body>
+
+<form class="gate" id="gate">
+  <h1>Kitchen</h1>
+  <label for="pin" class="note">Enter the staff PIN</label>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+  <p class="err" id="gateErr" role="alert"></p>
+  <button class="btn go" type="submit">Open kitchen</button>
+</form>
+
+<div id="app" hidden>
+  <div class="bar">
+    <h1>Kitchen</h1>
+    <div class="stats" id="stats"></div>
+    <div class="tools">
+      <button class="btn" id="soundBtn" type="button" aria-pressed="true">Sound on</button>
+      <button class="btn" id="menuBtn" type="button">Menu availability</button>
+      <button class="btn" id="lockBtn" type="button">Lock</button>
+    </div>
+  </div>
+  <p class="err" id="netErr" role="alert"></p>
+
+  <section class="panel" id="menuPanel" hidden>
+    <h2>Untick an item to mark it not available. Guests stop seeing it as orderable.</h2>
+    <div class="menu" id="menuList"></div>
+  </section>
+
+  <section class="panel" id="billPanel" hidden>
+    <h2>Open tables</h2>
+    <p class="note">Every order from a table adds to its bill. When the guests have paid, close the table so the next guests start a new bill.</p>
+    <div class="bills" id="billList"></div>
+  </section>
+
+  <div class="cols">
+    <section class="col"><h2><span>New</span><span id="nNew">0</span></h2><div class="stack" id="colNew"></div></section>
+    <section class="col"><h2><span>Preparing</span><span id="nPrep">0</span></h2><div class="stack" id="colPrep"></div></section>
+    <section class="col"><h2><span>Ready</span><span id="nReady">0</span></h2><div class="stack" id="colReady"></div></section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var pin = "", seen = null, orders = [], timer = null, sound = true, armed = {}, audio = null;
+  var bills = [], asked = null, closeArmed = null;
+  try { pin = sessionStorage.getItem("kpin") || ""; } catch (e) {}
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function inr(n) { return "Rs " + Number(n).toLocaleString("en-IN"); }
+
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = { "Content-Type": "application/json", "X-Staff-Pin": pin };
+    return fetch(url, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) { var e = new Error(d.detail && d.detail.message ? d.detail.message : "Request failed."); e.status = r.status; throw e; }
+        return d;
+      });
+    });
+  }
+
+  function beep() {
+    if (!sound) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 880; g.gain.value = 0.15; o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + 0.25);
+    } catch (e) {}
+  }
+
+  function minutes(iso) { return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000)); }
+
+  function card(o, fresh) {
+    var m = minutes(o.created_at), late = o.status !== "ready" && m >= 15;
+    var next = { new: ["Start cooking", "preparing", "go"], preparing: ["Mark ready", "ready", "ok"], ready: ["Served", "served", ""] }[o.status];
+    var cancelArmed = armed[o.id];
+    return '<article class="tk' + (late ? " late" : "") + (fresh ? " fresh" : "") + '" data-id="' + o.id + '">' +
+      '<div class="tkhead"><span class="tok">#' + o.token + '</span><span class="where">' + esc(o.type_label) + '</span></div>' +
+      (o.updated_at ? '<div class="upd">Updated by guest</div>' : '') +
+      '<div class="who">' + esc(o.name) + ' &middot; ' + esc(o.phone) + ' &middot; <span class="age">' + m + ' min</span></div>' +
+      '<ul class="lines">' + o.items.map(function (i) { return '<li><b>' + i.qty + 'x</b><span>' + esc(i.name) + '</span></li>'; }).join("") + '</ul>' +
+      '<div class="acts"><button class="btn ' + next[2] + '" data-act="status" data-to="' + next[1] + '" type="button">' + next[0] + '</button>' +
+      '<button class="btn" data-act="print" type="button">Reprint</button>' +
+      '<button class="btn danger" data-act="cancel" type="button">' + (cancelArmed ? "Confirm cancel" : "Cancel") + '</button></div></article>';
+  }
+
+  function render(fresh) {
+    var cols = { new: "colNew", preparing: "colPrep", ready: "colReady" }, counts = { new: "nNew", preparing: "nPrep", ready: "nReady" };
+    Object.keys(cols).forEach(function (st) {
+      var list = orders.filter(function (o) { return o.status === st; });
+      $(cols[st]).innerHTML = list.length ? list.map(function (o) { return card(o, fresh[o.id]); }).join("") : '<div class="empty">Nothing here</div>';
+      $(counts[st]).textContent = list.length;
+    });
+  }
+
+  function refresh() {
+    return api("/api/orders?status=active").then(function (d) {
+      var fresh = {}, ids = {};
+      // A guest editing an order counts as new: it flashes and beeps again.
+      d.orders.forEach(function (o) { var v = o.updated_at || 1; ids[o.id] = v; if (seen && seen[o.id] !== v) fresh[o.id] = true; });
+      if (seen && Object.keys(fresh).length) beep();
+      seen = ids; orders = d.orders; $("netErr").textContent = ""; render(fresh);
+    }).catch(function (e) {
+      if (e.status === 401) { lock(); return; }
+      $("netErr").textContent = "Cannot reach the server. Retrying...";
+    });
+  }
+  function renderBills() {
+    $("billPanel").hidden = !bills.length;
+    $("billList").innerHTML = bills.map(function (b) {
+      var ask = b.status === "bill_requested";
+      return '<article class="bill' + (ask ? " ask" : "") + '" data-table="' + b.table + '">' +
+        '<div class="tkhead"><span class="tok">Table ' + b.table + '</span><span class="money">' + inr(b.total) + '</span></div>' +
+        (ask ? '<div class="flag">Wants the bill</div>' : '') +
+        '<div class="who">' + b.rounds.length + (b.rounds.length === 1 ? ' order' : ' orders') +
+        (b.rounds.length ? ' (' + b.rounds.map(function (r) { return '#' + r.token; }).join(", ") + ')' : '') +
+        (b.guests.length ? ' &middot; ' + esc(b.guests.join(", ")) : '') + '</div>' +
+        '<div class="acts"><button class="btn" data-bill="print" type="button">Print bill</button>' +
+        '<button class="btn ok" data-bill="close" type="button">' + (closeArmed === b.table ? "Confirm: paid, close" : "Paid, close table") + '</button></div></article>';
+    }).join("");
+  }
+  function refreshBills() {
+    return api("/api/bills").then(function (d) {
+      var now = {};
+      d.bills.forEach(function (b) { if (b.status === "bill_requested") now[b.table] = 1; });
+      if (asked && Object.keys(now).some(function (t) { return !asked[t]; })) beep();
+      asked = now; bills = d.bills; renderBills();
+    }).catch(function () {});
+  }
+  function refreshStats() {
+    api("/api/stats/today").then(function (s) {
+      $("stats").innerHTML = '<span><b>' + s.orders + '</b> ' + (s.orders === 1 ? 'order' : 'orders') + ' today</span><span><b>' + inr(s.revenue) + '</b> sales</span>';
+    }).catch(function () {});
+  }
+  function loadMenu() {
+    fetch("/api/menu").then(function (r) { return r.json(); }).then(function (d) {
+      $("menuList").innerHTML = d.items.map(function (i) {
+        return '<label><span class="' + (i.available ? "" : "off") + '">' + esc(i.name) + '</span><input type="checkbox" data-item="' + esc(i.id) + '"' + (i.available ? " checked" : "") + '></label>';
+      }).join("");
+    });
+  }
+
+  function start() {
+    $("gate").hidden = true; $("app").hidden = false; seen = null; asked = null;
+    refresh().then(function () { loadMenu(); refreshStats(); refreshBills(); });
+    clearInterval(timer);
+    timer = setInterval(function () { refresh(); refreshStats(); refreshBills(); }, 4000);
+  }
+  function lock() {
+    clearInterval(timer); pin = ""; try { sessionStorage.removeItem("kpin"); } catch (e) {}
+    $("app").hidden = true; $("gate").hidden = false; $("pin").value = ""; $("pin").focus();
+  }
+
+  $("gate").addEventListener("submit", function (e) {
+    e.preventDefault();
+    pin = $("pin").value;
+    api("/api/orders?status=active").then(function () {
+      try { sessionStorage.setItem("kpin", pin); } catch (x) {}
+      $("gateErr").textContent = ""; start();
+    }).catch(function (err) { $("gateErr").textContent = err.status === 401 ? "Wrong PIN." : "Cannot reach the server."; });
+  });
+  $("lockBtn").addEventListener("click", lock);
+  $("menuBtn").addEventListener("click", function () { $("menuPanel").hidden = !$("menuPanel").hidden; });
+  $("soundBtn").addEventListener("click", function () {
+    sound = !sound; this.setAttribute("aria-pressed", String(sound)); this.textContent = sound ? "Sound on" : "Sound off";
+    if (sound) beep();
+  });
+
+  $("billList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-bill]"); if (!b) return;
+    var t = parseInt(b.closest(".bill").dataset.table, 10);
+    if (b.dataset.bill === "print") {
+      b.disabled = true;
+      api("/api/tables/" + t + "/bill/print", { method: "POST" }).then(function () { b.textContent = "Printed"; }).catch(function (err) { b.disabled = false; $("netErr").textContent = err.message; });
+      return;
+    }
+    if (closeArmed !== t) { closeArmed = t; renderBills(); setTimeout(function () { closeArmed = null; renderBills(); }, 4000); return; }
+    closeArmed = null;
+    api("/api/tables/" + t + "/bill/close", { method: "POST" }).then(refreshBills).catch(function (err) { $("netErr").textContent = err.message; });
+  });
+
+  $("app").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b) return;
+    var id = b.closest(".tk").dataset.id, act = b.dataset.act;
+    if (act === "status") {
+      api("/api/orders/" + id + "/status", { method: "PATCH", body: JSON.stringify({ status: b.dataset.to }) }).then(refresh).catch(function (err) { $("netErr").textContent = err.message; });
+    } else if (act === "print") {
+      b.disabled = true;
+      api("/api/orders/" + id + "/print", { method: "POST" }).then(function () { b.textContent = "Printed"; }).catch(function (err) { b.disabled = false; $("netErr").textContent = err.message; });
+    } else if (act === "cancel") {
+      if (!armed[id]) { armed = {}; armed[id] = true; render({}); setTimeout(function () { armed = {}; render({}); }, 4000); return; }
+      armed = {};
+      api("/api/orders/" + id + "/status", { method: "PATCH", body: JSON.stringify({ status: "cancelled" }) }).then(refresh).catch(function (err) { $("netErr").textContent = err.message; });
+    }
+  });
+  $("menuList").addEventListener("change", function (e) {
+    var cb = e.target.closest("[data-item]"); if (!cb) return;
+    api("/api/menu/" + encodeURIComponent(cb.dataset.item), { method: "PATCH", body: JSON.stringify({ available: cb.checked }) })
+      .then(loadMenu).catch(function (err) { cb.checked = !cb.checked; $("netErr").textContent = err.message; });
+  });
+
+  // Opened as a file or in a file preview: there is no server behind it, so say where to open it instead.
+  if (!/^https?:$/.test(location.protocol)) { $("gateErr").textContent = "This page was opened as a file, so it cannot reach the server. Type http://localhost:8080/kitchen into your browser's address bar instead."; $("gate").querySelector("button").disabled = true; return; }
+  if (pin) {
+    api("/api/orders?status=active").then(start).catch(function () { lock(); });
+  } else { $("pin").focus(); }
+})();
+</script>
+</body>
+</html>

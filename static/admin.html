@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Order Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Owner screen: tabs (Menu, Sales, Orders, Customers, Tools) over one working area. Same warm palette as the kiosk. */
+:root {
+  --bg: #f6f1ec; --surface: #fffdfb; --ink: #231a16; --muted: #6f625b; --line: #e4d9d0;
+  --accent: #b83a0b; --accent-soft: #fbe6da; --on-accent: #fff; --action: #1f6f4a; --action-ink: #fff;
+  --veg: #1f8a4c; --nonveg: #b3261e; --bar: #d9805a;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+    --accent: #f0783f; --accent-soft: #3a2218; --on-accent: #1a0d06; --action: #3fae7a; --action-ink: #0d1a13;
+    --veg: #43b571; --nonveg: #ef6a60; --bar: #c8663f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --accent-soft: #3a2218; --on-accent: #1a0d06; --action: #3fae7a; --action-ink: #0d1a13;
+  --veg: #43b571; --nonveg: #ef6a60; --bar: #c8663f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--font-body);
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.err { color: var(--nonveg); min-height: 1.3em; margin: 6px 0; }
+.ok { color: var(--action); font-weight: 700; }
+
+.btn { background: var(--surface); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 14px; min-height: 40px; font-weight: 700; }
+.btn.go { background: var(--action); border-color: var(--action); color: var(--action-ink); }
+a.btn { color: var(--accent); }
+.btn.danger { color: var(--nonveg); }
+.btn.sm { min-height: 34px; padding: 0 10px; font-size: 0.9rem; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-block: 6px 12px; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; border-bottom: 2px solid var(--line); margin-bottom: 18px; scrollbar-width: none; }
+.tab { border: 0; background: transparent; padding: 12px 16px; font-weight: 700; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+.gate { max-width: 340px; margin: 12vh auto; display: grid; gap: 12px; }
+.gate input { font-size: 1.3rem; padding: 14px; letter-spacing: 0.2em; }
+input, select, textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface); }
+label { display: block; font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; }
+
+/* menu */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px; }
+.form .wide { grid-column: 1 / -1; }
+.inline { display: flex; align-items: center; gap: 8px; }
+.inline input[type="checkbox"] { width: 22px; height: 22px; }
+.swatch { width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto; background: radial-gradient(circle at 34% 30%, hsl(var(--h) 75% 58%), hsl(var(--h) 70% 30%) 70%); }
+.cat { font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 22px 0 6px; }
+.item { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.item .nm { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.item .sub { color: var(--muted); font-size: 0.88rem; }
+.item .acts { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.item .price { font-weight: 700; font-variant-numeric: tabular-nums; }
+.item.off .nm { text-decoration: line-through; color: var(--muted); }
+.thumb { float: left; width: 64px; height: 48px; border-radius: 8px; object-fit: cover; margin: 2px 12px 2px 0; background: var(--line); }
+.thumb.none { display: grid; place-items: center; font-size: 0.65rem; color: var(--muted); text-align: center; line-height: 1.1; }
+.item .credit { font-size: 0.75rem; overflow-wrap: anywhere; }
+.item > div { min-width: 0; }
+.dot { width: 16px; height: 16px; border: 2px solid var(--veg); border-radius: 3px; display: grid; place-items: center; }
+.dot::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--veg); }
+.dot.nv { border-color: var(--nonveg); } .dot.nv::after { background: var(--nonveg); }
+@media (min-width: 720px) { .item { grid-template-columns: auto 1fr auto auto; } .item .acts { grid-column: auto; } }
+
+/* reports */
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 14px; }
+.filters > div { flex: 1 1 140px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.stat b { display: block; font-family: var(--font-display); font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.85rem; }
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: 5.5em 1fr 6.5em; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.bar .track { background: var(--accent-soft); border-radius: 4px; height: 16px; overflow: hidden; }
+.bar .fill { background: var(--bar); height: 100%; border-radius: 4px; min-width: 2px; }
+.bar .v { text-align: right; font-weight: 700; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+.pill.served { background: color-mix(in srgb, var(--action) 18%, var(--surface)); color: var(--action); }
+.pill.cancelled { background: color-mix(in srgb, var(--nonveg) 16%, var(--surface)); color: var(--nonveg); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; }
+dt { color: var(--muted); } dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<form class="gate" id="gate">
+  <h1>Admin</h1>
+  <label for="pin">Owner PIN</label>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off">
+  <p class="err" id="gateErr" role="alert"></p>
+  <button class="btn go" type="submit" style="min-height:48px">Open admin</button>
+</form>
+
+<div id="app" hidden>
+  <div class="head">
+    <h1 id="shopName">Admin</h1>
+    <span><a href="/kitchen" class="muted">Kitchen</a> &nbsp; <a href="/tables" class="muted">Table QR codes</a> &nbsp; <button class="btn sm" id="lock" type="button">Lock</button></span>
+  </div>
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="menu" aria-selected="true" type="button">Menu</button>
+    <button class="tab" role="tab" data-tab="sales" aria-selected="false" type="button">Sales</button>
+    <button class="tab" role="tab" data-tab="orders" aria-selected="false" type="button">Orders</button>
+    <button class="tab" role="tab" data-tab="customers" aria-selected="false" type="button">Customers</button>
+    <button class="tab" role="tab" data-tab="tools" aria-selected="false" type="button">Tools</button>
+  </nav>
+  <p class="err" id="msg" role="alert"></p>
+
+  <!-- MENU -->
+  <section id="tab-menu">
+    <div class="panel" id="formPanel" hidden>
+      <h2 id="formTitle">Add item</h2>
+      <form class="form" id="itemForm" novalidate>
+        <div class="wide"><label for="iName">Name</label><input id="iName" maxlength="60" autocomplete="off"></div>
+        <div><label for="iCat">Category</label><input id="iCat" maxlength="30" list="catList" autocomplete="off"><datalist id="catList"></datalist></div>
+        <div><label for="iPrice">Price (rupees)</label><input id="iPrice" type="number" inputmode="numeric" min="0" max="100000" step="1"></div>
+        <div class="wide"><label for="iDesc">Description</label><textarea id="iDesc" rows="2" maxlength="200"></textarea></div>
+        <div><label for="iSpice">Spice level</label>
+          <select id="iSpice"><option value="0">Mild</option><option value="1">Medium spicy</option><option value="2">Spicy</option><option value="3">Very spicy</option></select></div>
+        <div><label for="iHue">Tile colour</label><div class="inline"><span class="swatch" id="swatch"></span><input id="iHue" type="range" min="0" max="360" value="20"></div></div>
+        <div class="inline"><input id="iVeg" type="checkbox"><label for="iVeg" style="margin:0">Vegetarian</label></div>
+        <div class="inline"><input id="iAvail" type="checkbox" checked><label for="iAvail" style="margin:0">Available to order</label></div>
+        <div class="wide inline"><button class="btn go" type="submit" id="saveItem">Save item</button><button class="btn" type="button" id="cancelItem">Cancel</button></div>
+      </form>
+      <p class="err" id="formErr" role="alert"></p>
+    </div>
+    <p><button class="btn go" id="addBtn" type="button">Add item</button></p>
+    <div id="menuList"></div>
+    <input type="file" id="photoFile" accept="image/jpeg,image/png,image/webp" hidden>
+    <p class="muted" style="font-size:.85rem">Photos show on the guest menu and the landing page. Dishes without a photo get a drawn picture. <a class="btn sm" href="/credits" target="_blank" rel="noopener">Photo credits</a></p>
+  </section>
+
+  <!-- SALES -->
+  <section id="tab-sales" hidden>
+    <div class="filters">
+      <div><label for="sFrom">From</label><input id="sFrom" type="date"></div>
+      <div><label for="sTo">To</label><input id="sTo" type="date"></div>
+      <button class="btn" data-range="0" type="button">Today</button>
+      <button class="btn" data-range="6" type="button">7 days</button>
+      <button class="btn" data-range="29" type="button">30 days</button>
+      <button class="btn go" id="sGo" type="button">Show</button>
+    </div>
+    <div id="salesOut"><p class="muted">Pick dates and press Show.</p></div>
+  </section>
+
+  <!-- ORDERS -->
+  <section id="tab-orders" hidden>
+    <div class="filters">
+      <div><label for="oFrom">From</label><input id="oFrom" type="date"></div>
+      <div><label for="oTo">To</label><input id="oTo" type="date"></div>
+      <div><label for="oPhone">Phone starts with</label><input id="oPhone" inputmode="numeric" maxlength="10" autocomplete="off"></div>
+      <div><label for="oStatus">Status</label><select id="oStatus"><option value="">Any</option><option>new</option><option>preparing</option><option>ready</option><option>served</option><option>cancelled</option></select></div>
+      <button class="btn go" id="oGo" type="button">Search</button>
+      <button class="btn" id="oCsv" type="button">Download CSV</button>
+    </div>
+    <div id="ordersOut"><p class="muted">Press Search.</p></div>
+  </section>
+
+  <!-- CUSTOMERS -->
+  <section id="tab-customers" hidden>
+    <div class="filters">
+      <div><label for="cQ">Search name or number</label><input id="cQ" autocomplete="off"></div>
+      <button class="btn go" id="cGo" type="button">Search</button>
+    </div>
+    <p class="muted">Forget removes a guest's name and number. Their past orders stay without any personal details, so your sales totals do not change.</p>
+    <div id="custOut"></div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tab-tools" hidden>
+    <div class="two">
+      <form class="panel" id="setForm" novalidate>
+        <h2>Restaurant</h2>
+        <p class="muted" id="setNote" hidden>On this server the settings are kept in the .env file. Edit that file and restart.</p>
+        <div class="form">
+          <div class="wide"><label for="sShop">Restaurant name</label><input id="sShop" maxlength="60" autocomplete="off"></div>
+          <div class="wide"><label for="sAddr">Address on the slip</label><input id="sAddr" maxlength="120" autocomplete="off"></div>
+          <div><label for="sGstin">GSTIN (optional)</label><input id="sGstin" maxlength="15" autocomplete="off"></div>
+          <div><label for="sGst">GST charged (%)</label><input id="sGst" type="number" min="0" max="28" step="1"></div>
+          <div><label for="sTables">Number of tables</label><input id="sTables" type="number" min="1" max="50" step="1"></div>
+        </div>
+        <h2 style="margin-top:20px">Receipt printer</h2>
+        <div class="form">
+          <div class="wide"><label for="sPrinter">Printer type</label>
+            <select id="sPrinter"><option value="windows">A printer installed in Windows</option><option value="network">Network printer (IP address)</option>
+              <option value="usb">USB printer, advanced</option><option value="none">No printer</option><option value="file">Save slips as text files (testing)</option></select></div>
+          <div class="wide"><label for="sCols">Paper</label><select id="sCols"><option value="42">80 mm</option><option value="32">58 mm</option><option value="48">80 mm, small print</option></select></div>
+          <div class="wide" id="wPName"><label for="sPName">Printer name (empty means the default printer)</label><input id="sPName" maxlength="100" list="printerList" autocomplete="off"><datalist id="printerList"></datalist></div>
+          <div id="wPHost"><label for="sPHost">Printer IP address</label><input id="sPHost" autocomplete="off" placeholder="192.168.1.50"></div>
+          <div id="wPPort"><label for="sPPort">Port</label><input id="sPPort" type="number" min="1" max="65535"></div>
+          <div id="wVendor"><label for="sVendor">USB vendor id</label><input id="sVendor" autocomplete="off" placeholder="0x04b8"></div>
+          <div id="wProduct"><label for="sProduct">USB product id</label><input id="sProduct" autocomplete="off" placeholder="0x0e15"></div>
+        </div>
+        <h2 style="margin-top:20px">Guest address and PINs</h2>
+        <div class="form">
+          <div class="wide"><label for="sPublic">Guest address (empty means this computer on the shop Wi-Fi)</label><input id="sPublic" autocomplete="off" placeholder="https://order.example.com"></div>
+          <div><label for="sStaffPin">New kitchen PIN</label><input id="sStaffPin" autocomplete="off" maxlength="20" placeholder="leave empty to keep"></div>
+          <div><label for="sAdminPin">New owner PIN</label><input id="sAdminPin" autocomplete="off" maxlength="20" placeholder="leave empty to keep"></div>
+        </div>
+        <div class="inline" style="margin-top:16px"><button class="btn go" id="saveSet" type="submit">Save settings</button><span id="setMsg" role="status"></span></div>
+      </form>
+      <div>
+        <div class="panel"><h2>Guest address</h2>
+          <p class="muted" style="margin-top:0">Guests' phones open this address. The table QR codes use it.</p>
+          <p style="font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere;font-weight:700" id="guestInfo"></p>
+          <p class="muted" id="guestHint"></p>
+          <a href="/tables" class="btn" style="display:inline-flex;align-items:center;text-decoration:none">Print table QR codes</a></div>
+        <div class="panel"><h2>Printer test</h2>
+          <p class="muted" style="margin-top:0">Sends a sample slip to the printer, so you can check paper and layout without placing an order. Save your printer settings first.</p>
+          <button class="btn go" id="printTest" type="button">Print test slip</button>
+          <p id="printOut" role="status"></p></div>
+        <div class="panel"><h2>About</h2><p class="muted" id="verInfo" style="margin:0"></p></div>
+      </div>
+    </div>
+  </section>
+</div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var pin = "", items = [], editing = null, armed = null, tab = "menu", loaded = {};
+  try { pin = sessionStorage.getItem("apin") || ""; } catch (e) {}
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function inr(n) { return "₹" + Number(n || 0).toLocaleString("en-IN"); }
+  function ymd(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function daysAgo(n) { var d = new Date(); d.setDate(d.getDate() - n); return ymd(d); }
+  function say(t, good) { var m = $("msg"); m.textContent = t || ""; m.className = good ? "ok" : "err"; }
+
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = { "Content-Type": "application/json", "X-Staff-Pin": pin };
+    return fetch(url, opts).then(function (r) {
+      if (opts.raw && r.ok) return r;
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) { var e = new Error(d.detail && d.detail.message ? d.detail.message : "Request failed."); e.status = r.status; throw e; }
+        return d;
+      });
+    });
+  }
+  function fail(e) {
+    if (e.status === 401) { lock(); return; }
+    say(e.status === undefined ? "Cannot reach the server." : e.message);
+  }
+
+  /* ---------- gate and tabs ---------- */
+  function open() {
+    $("gate").hidden = true; $("app").hidden = false;
+    api("/api/admin/settings").then(function (s) { $("shopName").textContent = s.shop_name + " admin"; fillSettings(s); }).catch(fail);
+    loadMenu();
+  }
+  function lock() {
+    pin = ""; try { sessionStorage.removeItem("apin"); } catch (e) {}
+    $("app").hidden = true; $("gate").hidden = false; $("pin").value = ""; $("pin").focus();
+  }
+  $("gate").addEventListener("submit", function (e) {
+    e.preventDefault(); pin = $("pin").value;
+    api("/api/admin/settings").then(function () {
+      try { sessionStorage.setItem("apin", pin); } catch (x) {}
+      $("gateErr").textContent = ""; open();
+    }).catch(function (err) { $("gateErr").textContent = err.status === 401 ? "Wrong PIN." : err.message || "Cannot reach the server."; });
+  });
+  $("lock").addEventListener("click", lock);
+  $("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-tab]"); if (!b) return;
+    tab = b.dataset.tab; say("");
+    Array.prototype.forEach.call($("tabs").children, function (x) { x.setAttribute("aria-selected", String(x === b)); });
+    ["menu", "sales", "orders", "customers", "tools"].forEach(function (t) { $("tab-" + t).hidden = t !== tab; });
+    if (!loaded[tab]) { loaded[tab] = true; if (tab === "sales") runSales(); if (tab === "orders") runOrders(); if (tab === "customers") runCustomers(); if (tab === "tools") loadPrinters(); }
+  });
+
+  /* ---------- menu ---------- */
+  function loadMenu() {
+    return fetch("/api/menu").then(function (r) { return r.json(); }).then(function (d) { items = d.items; renderMenu(d.categories); }).catch(fail);
+  }
+  function renderMenu(cats) {
+    $("catList").innerHTML = cats.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
+    $("menuList").innerHTML = cats.map(function (c) {
+      var list = items.filter(function (i) { return i.category === c; });
+      return '<div class="cat">' + esc(c) + ' (' + list.length + ')</div>' + list.map(function (i, n) {
+        var sub = (i.description ? esc(i.description) + " · " : "") + ["Mild", "Medium spicy", "Spicy", "Very spicy"][i.spice];
+        return '<div class="item' + (i.available ? "" : " off") + '" data-id="' + esc(i.id) + '">' +
+          '<span class="dot' + (i.veg ? "" : " nv") + '" title="' + (i.veg ? "Vegetarian" : "Non-vegetarian") + '"></span>' +
+          '<div>' + (i.image ? '<img class="thumb" src="' + esc(i.image) + '" alt="" loading="lazy">' : '<span class="thumb none">No photo</span>') +
+          '<div class="nm">' + esc(i.name) + '</div><div class="sub">' + sub + '</div>' +
+          (i.image_credit ? '<div class="sub credit">' + esc(i.image_credit) + '</div>' : '') + '</div>' +
+          '<span class="price">' + inr(i.price) + '</span>' +
+          '<div class="acts"><label class="inline" style="margin:0;font-weight:500"><input type="checkbox" data-act="avail"' + (i.available ? " checked" : "") + ' style="width:22px;height:22px"> Available</label>' +
+          '<button class="btn sm" data-act="up" type="button" aria-label="Move up"' + (n === 0 ? " disabled" : "") + '>Up</button>' +
+          '<button class="btn sm" data-act="down" type="button" aria-label="Move down"' + (n === list.length - 1 ? " disabled" : "") + '>Down</button>' +
+          '<button class="btn sm" data-act="edit" type="button">Edit</button>' +
+          '<button class="btn sm" data-act="photo" type="button">' + (i.image ? "Change photo" : "Add photo") + '</button>' +
+          (i.image ? '<button class="btn sm" data-act="nophoto" type="button">Remove photo</button>' : '') +
+          '<button class="btn sm danger" data-act="del" type="button">' + (armed === i.id ? "Confirm delete" : "Delete") + '</button></div></div>';
+      }).join("");
+    }).join("");
+  }
+  function showForm(it) {
+    editing = it ? it.id : null;
+    $("formTitle").textContent = it ? "Edit item" : "Add item";
+    $("iName").value = it ? it.name : ""; $("iCat").value = it ? it.category : ""; $("iPrice").value = it ? it.price : "";
+    $("iDesc").value = it ? it.description : ""; $("iSpice").value = it ? it.spice : 0; $("iHue").value = it ? it.hue : 20;
+    $("iVeg").checked = it ? it.veg : false; $("iAvail").checked = it ? it.available : true;
+    $("formErr").textContent = ""; $("formPanel").hidden = false; setSwatch(); $("iName").focus();
+    $("formPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function setSwatch() { $("swatch").style.setProperty("--h", $("iHue").value); }
+  $("iHue").addEventListener("input", setSwatch);
+  $("addBtn").addEventListener("click", function () { showForm(null); });
+  $("cancelItem").addEventListener("click", function () { $("formPanel").hidden = true; });
+  $("itemForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var price = $("iPrice").value.trim();
+    if (!/^\d+$/.test(price)) { $("formErr").textContent = "Enter the price as a whole number of rupees."; return; }
+    var body = { name: $("iName").value, category: $("iCat").value, description: $("iDesc").value, price: parseInt(price, 10),
+      veg: $("iVeg").checked, spice: parseInt($("iSpice").value, 10), hue: parseInt($("iHue").value, 10), available: $("iAvail").checked };
+    var btn = $("saveItem"); btn.disabled = true;
+    api(editing ? "/api/admin/menu/" + encodeURIComponent(editing) : "/api/admin/menu", { method: editing ? "PATCH" : "POST", body: JSON.stringify(body) })
+      .then(function () { $("formPanel").hidden = true; say("Saved.", true); return loadMenu(); })
+      .catch(function (err) { if (err.status === 401) lock(); else $("formErr").textContent = err.message; })
+      .then(function () { btn.disabled = false; });
+  });
+  $("menuList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b || b.dataset.act === "avail") return;
+    var id = b.closest(".item").dataset.id, act = b.dataset.act;
+    var it = items.filter(function (x) { return x.id === id; })[0];
+    if (act === "edit") { showForm(it); return; }
+    if (act === "photo") { photoFor = id; $("photoFile").value = ""; $("photoFile").click(); return; }
+    if (act === "nophoto") {
+      api("/api/admin/menu/" + encodeURIComponent(id) + "/image", { method: "DELETE" })
+        .then(function () { say("Photo removed. Guests see the drawn picture again.", true); return loadMenu(); }).catch(fail);
+      return;
+    }
+    if (act === "up" || act === "down") { api("/api/admin/menu/" + encodeURIComponent(id) + "/move", { method: "POST", body: JSON.stringify({ direction: act }) }).then(loadMenu).catch(fail); return; }
+    if (act === "del") {
+      if (armed !== id) { armed = id; renderMenu(currentCats()); setTimeout(function () { if (armed === id) { armed = null; renderMenu(currentCats()); } }, 4000); return; }
+      armed = null;
+      api("/api/admin/menu/" + encodeURIComponent(id), { method: "DELETE" }).then(function () { say("Deleted. Past orders keep their details.", true); return loadMenu(); }).catch(fail);
+    }
+  });
+  $("menuList").addEventListener("change", function (e) {
+    var cb = e.target.closest('[data-act="avail"]'); if (!cb) return;
+    var id = cb.closest(".item").dataset.id;
+    api("/api/menu/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify({ available: cb.checked }) }).then(loadMenu).catch(function (err) { cb.checked = !cb.checked; fail(err); });
+  });
+  // Dish photos: shrink in the browser (longest side 1000 px, JPEG) so even a big phone photo uploads quickly.
+  var photoFor = null;
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\//.test(file.type)) { reject(new Error("Choose a photo (JPEG, PNG or WebP).")); return; }
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); resolve(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("That file could not be opened as a photo.")); };
+      img.src = url;
+    });
+  }
+  $("photoFile").addEventListener("change", function () {
+    var file = this.files && this.files[0], id = photoFor; if (!file || !id) return;
+    say("Uploading photo...", true);
+    shrink(file).then(function (data) {
+      return api("/api/admin/menu/" + encodeURIComponent(id) + "/image", { method: "PUT", body: JSON.stringify({ data: data, credit: "Photo by the restaurant" }) });
+    }).then(function () { say("Photo saved. Guests see it straight away.", true); return loadMenu(); })
+      .catch(function (err) { if (err.status === 401) lock(); else say(err.message); });
+  });
+  function currentCats() { var seen = {}; return items.map(function (i) { return i.category; }).filter(function (c) { return seen[c] ? false : (seen[c] = true); }); }
+
+  /* ---------- sales ---------- */
+  $("sFrom").value = daysAgo(6); $("sTo").value = daysAgo(0); $("oFrom").value = daysAgo(6); $("oTo").value = daysAgo(0);
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-range]"); if (!b) return;
+    $("sFrom").value = daysAgo(parseInt(b.dataset.range, 10)); $("sTo").value = daysAgo(0); runSales();
+  });
+  $("sGo").addEventListener("click", runSales);
+  function table(head, rows) {
+    return '<div class="scroll"><table><thead><tr>' + head.map(function (h) { return '<th class="' + (h[1] ? "n" : "") + '">' + esc(h[0]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      (rows.length ? rows.join("") : '<tr><td colspan="' + head.length + '" class="muted">Nothing in this range.</td></tr>') + '</tbody></table></div>';
+  }
+  function runSales() {
+    say("");
+    api("/api/admin/report?start=" + $("sFrom").value + "&end=" + $("sTo").value).then(function (r) {
+      var max = Math.max.apply(null, r.days.map(function (d) { return d.sales; }).concat([1]));
+      var cards = [["Sales", inr(r.sales)], ["Orders", r.orders], ["Average order", inr(r.average)], ["GST collected", inr(r.gst)], ["Guests", r.guests], ["Cancelled", r.cancelled]];
+      $("salesOut").innerHTML =
+        '<div class="cards">' + cards.map(function (c) { return '<div class="stat"><b>' + esc(c[1]) + '</b><span>' + c[0] + '</span></div>'; }).join("") + '</div>' +
+        '<div class="panel"><h2>Sales by day</h2><div class="bars">' + r.days.map(function (d) {
+          return '<div class="bar"><span>' + esc(d.date.slice(5)) + '</span><span class="track"><span class="fill" style="display:block;width:' + Math.round(d.sales / max * 100) + '%"></span></span><span class="v">' + inr(d.sales) + '</span></div>';
+        }).join("") + '</div></div>' +
+        '<div class="two"><div class="panel"><h2>Top items</h2>' + table([["Item"], ["Sold", 1], ["Sales", 1]], r.top_items.map(function (i) { return '<tr><td>' + esc(i.name) + '</td><td class="n">' + i.qty + '</td><td class="n">' + inr(i.sales) + '</td></tr>'; })) + '</div>' +
+        '<div class="panel"><h2>Dine in, takeaway and tables</h2>' + table([["Where"], ["Orders", 1], ["Sales", 1]], r.by_type.concat(r.by_table).map(function (i) { return '<tr><td>' + esc(i.label) + '</td><td class="n">' + i.orders + '</td><td class="n">' + inr(i.sales) + '</td></tr>'; })) + '</div></div>' +
+        '<p class="muted">Cancelled orders are left out of sales. Subtotal ' + inr(r.subtotal) + ' plus GST ' + inr(r.gst) + '.</p>';
+    }).catch(fail);
+  }
+
+  /* ---------- orders ---------- */
+  function orderQuery() {
+    return "start=" + $("oFrom").value + "&end=" + $("oTo").value + "&phone=" + encodeURIComponent($("oPhone").value.replace(/\D/g, "")) + "&status=" + encodeURIComponent($("oStatus").value);
+  }
+  $("oPhone").addEventListener("input", function () { this.value = this.value.replace(/\D/g, ""); });
+  $("oGo").addEventListener("click", runOrders);
+  function runOrders() {
+    say("");
+    api("/api/admin/orders?" + orderQuery().replace(/&phone=(?=&|$)/, "").replace(/&status=$/, "")).then(function (d) {
+      $("ordersOut").innerHTML = table([["Token"], ["When"], ["Guest"], ["Where"], ["Items"], ["Total", 1], ["Status"], [""]], d.orders.map(function (o) {
+        return '<tr><td><b>#' + o.token + '</b></td><td>' + esc(o.created_label) + '</td><td>' + esc(o.name) + '<br><span class="muted">' + esc(o.phone) + '</span></td><td>' + esc(o.type_label) + '</td><td>' +
+          o.items.map(function (i) { return i.qty + 'x ' + esc(i.name); }).join("<br>") + '</td><td class="n">' + inr(o.total) + '</td><td><span class="pill ' + esc(o.status) + '">' + esc(o.status) + '</span></td>' +
+          '<td><button class="btn sm" data-reprint="' + o.id + '" type="button">Reprint</button></td></tr>';
+      })) + (d.orders.length >= 200 ? '<p class="muted">Showing the latest 200. Narrow the dates to see others.</p>' : "");
+    }).catch(fail);
+  }
+  $("ordersOut").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-reprint]"); if (!b) return;
+    b.disabled = true;
+    api("/api/orders/" + b.dataset.reprint + "/print", { method: "POST" }).then(function () { b.textContent = "Printed"; }).catch(function (err) { b.disabled = false; fail(err); });
+  });
+  $("oCsv").addEventListener("click", function () {
+    api("/api/admin/orders.csv?start=" + $("oFrom").value + "&end=" + $("oTo").value, { raw: true }).then(function (r) { return r.blob(); }).then(function (blob) {
+      var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "orders-" + $("oFrom").value + "-to-" + $("oTo").value + ".csv";
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    }).catch(fail);
+  });
+
+  /* ---------- customers ---------- */
+  $("cGo").addEventListener("click", runCustomers);
+  $("cQ").addEventListener("keydown", function (e) { if (e.key === "Enter") runCustomers(); });
+  var forgetArmed = null;
+  function runCustomers(keep) {
+    if (keep !== true) say("");
+    api("/api/admin/customers?q=" + encodeURIComponent($("cQ").value.trim())).then(function (d) {
+      $("custOut").innerHTML = table([["Guest"], ["Phone"], ["Orders", 1], ["Spent", 1], ["Last visit"], [""]], d.customers.map(function (c) {
+        return '<tr><td>' + esc(c.name) + '</td><td>' + esc(c.phone) + '</td><td class="n">' + c.order_count + '</td><td class="n">' + inr(c.spend) + '</td><td>' + esc((c.last_seen || "").replace("T", " ").slice(0, 16)) + '</td>' +
+          '<td><button class="btn sm danger" data-forget="' + esc(c.phone) + '" type="button">' + (forgetArmed === c.phone ? "Confirm forget" : "Forget") + '</button></td></tr>';
+      }));
+    }).catch(fail);
+  }
+  $("custOut").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-forget]"); if (!b) return;
+    var ph = b.dataset.forget;
+    if (forgetArmed !== ph) { forgetArmed = ph; b.textContent = "Confirm forget"; setTimeout(function () { if (forgetArmed === ph) { forgetArmed = null; b.textContent = "Forget"; } }, 4000); return; }
+    forgetArmed = null;
+    api("/api/admin/customers/" + encodeURIComponent(ph), { method: "DELETE" }).then(function (d) { say("Removed. " + d.orders_anonymised + " past orders no longer show a name or number.", true); runCustomers(true); }).catch(fail);
+  });
+
+  /* ---------- tools ---------- */
+  var FIELDS = ["sShop", "sAddr", "sGstin", "sGst", "sTables", "sPrinter", "sCols", "sPName", "sPHost", "sPPort", "sVendor", "sProduct", "sPublic", "sStaffPin", "sAdminPin"];
+  function syncPrinterFields() {
+    var p = $("sPrinter").value;
+    $("wPName").hidden = p !== "windows"; $("wPHost").hidden = $("wPPort").hidden = p !== "network"; $("wVendor").hidden = $("wProduct").hidden = p !== "usb";
+    $("sCols").parentNode.hidden = p === "none" || p === "file";
+  }
+  $("sPrinter").addEventListener("change", syncPrinterFields);
+  function fillSettings(s) {
+    $("sShop").value = s.shop_name; $("sAddr").value = s.shop_addr; $("sGstin").value = s.gstin; $("sGst").value = s.gst_percent; $("sTables").value = s.tables;
+    $("sPrinter").value = s.printer; $("sCols").value = String(s.cols); $("sPName").value = s.printer_name; $("sPHost").value = s.printer_host;
+    $("sPPort").value = s.printer_port; $("sVendor").value = s.usb_vendor; $("sProduct").value = s.usb_product; $("sPublic").value = s.public_url;
+    $("sStaffPin").value = ""; $("sAdminPin").value = "";
+    $("guestInfo").textContent = s.guest_url || "Not found";
+    $("guestHint").textContent = s.public_url ? "This is the address you entered." : (s.lan_url ? "Found automatically. Guests must be on the shop Wi-Fi. Reserve this computer's address in your router so it never changes." : "This computer is not on a network. Connect it to the shop Wi-Fi or router and restart the program.");
+    $("verInfo").textContent = "Version " + s.version + ", time zone " + s.timezone + ".";
+    var ro = !s.editable; FIELDS.forEach(function (id) { $(id).disabled = ro; }); $("saveSet").disabled = ro; $("setNote").hidden = s.editable;
+    syncPrinterFields();
+  }
+  function setMsg(text, good) { var m = $("setMsg"); m.textContent = text; m.className = good ? "ok" : "err"; }
+  function loadPrinters() {
+    api("/api/admin/printers").then(function (d) { $("printerList").innerHTML = d.printers.map(function (n) { return '<option value="' + esc(n) + '">'; }).join(""); }).catch(function () {});
+  }
+  $("setForm").addEventListener("submit", function (e) {
+    e.preventDefault(); setMsg("");
+    var body = { shop_name: $("sShop").value, shop_addr: $("sAddr").value, gstin: $("sGstin").value, printer: $("sPrinter").value, cols: parseInt($("sCols").value, 10),
+      printer_name: $("sPName").value, printer_host: $("sPHost").value, usb_vendor: $("sVendor").value, usb_product: $("sProduct").value, public_url: $("sPublic").value };
+    var gst = parseInt($("sGst").value, 10), tables = parseInt($("sTables").value, 10), port = parseInt($("sPPort").value, 10);
+    if (isNaN(tables) || tables < 1 || tables > 50) { setMsg("The number of tables must be between 1 and 50."); return; }
+    if (isNaN(gst) || gst < 0 || gst > 28) { setMsg("GST must be between 0 and 28 percent."); return; }
+    if (!isNaN(gst)) body.gst_percent = gst; if (!isNaN(tables)) body.tables = tables; if (!isNaN(port)) body.printer_port = port;
+    var sp = $("sStaffPin").value.trim(), ap = $("sAdminPin").value.trim();
+    if (sp) body.staff_pin = sp; if (ap) body.admin_pin = ap;
+    var btn = $("saveSet"); btn.disabled = true;
+    api("/api/admin/settings", { method: "PUT", body: JSON.stringify(body) }).then(function (s) {
+      if (ap) { pin = ap; try { sessionStorage.setItem("apin", ap); } catch (x) {} }
+      $("shopName").textContent = s.shop_name + " admin"; fillSettings(s); setMsg(ap || sp ? "Saved. Remember the new PIN." : "Saved.", true);
+    }).catch(function (err) { if (err.status === 401) lock(); else setMsg(err.message); }).then(function () { btn.disabled = false; });
+  });
+  $("printTest").addEventListener("click", function () {
+    var out = $("printOut"), btn = this; btn.disabled = true; out.textContent = "Printing..."; out.className = "muted";
+    api("/api/admin/print-test", { method: "POST" }).then(function (d) { out.textContent = "Sent (" + d.via + ")."; out.className = "ok"; })
+      .catch(function (err) { if (err.status === 401) lock(); else { out.textContent = err.message; out.className = "err"; } })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // Opened as a file or in a file preview: there is no server behind it, so say where to open it instead.
+  if (!/^https?:$/.test(location.protocol)) { $("gateErr").textContent = "This page was opened as a file, so it cannot reach the server. Type http://localhost:8080/admin into your browser's address bar instead."; $("gate").querySelector("button").disabled = true; return; }
+  if (pin) { api("/api/admin/settings").then(open).catch(function () { lock(); }); } else { $("pin").focus(); }
+})();
+</script>
+</body>
+</html>

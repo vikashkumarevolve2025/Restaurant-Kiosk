@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Self Order</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one tall kiosk column. Header and category tabs on top, a grid of dish cards that scrolls, a fixed total bar at the bottom, and a full-screen sheet for cart, details and the printed slip. */
+:root {
+  --bg: #f6f1ec;
+  --surface: #fffdfb;
+  --ink: #231a16;
+  --muted: #6f625b;
+  --line: #e4d9d0;
+  --accent: #b83a0b;
+  --accent-soft: #fbe6da;
+  --on-accent: #ffffff;
+  --action: #1f6f4a;
+  --action-ink: #ffffff;
+  --paper: #fffef9;
+  --paper-ink: #1c1917;
+  --paper-line: #b9b0a6;
+  --veg: #1f8a4c;
+  --nonveg: #b3261e;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+    --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13;
+    --veg: #43b571; --nonveg: #ef6a60; --on-accent: #1a0d06;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13;
+  --veg: #43b571; --nonveg: #ef6a60; --on-accent: #1a0d06;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.4;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 96px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+
+/* header */
+.top { padding-block: 18px 10px; display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; letter-spacing: -0.02em; line-height: 1; margin: 0; }
+.brand small { display: block; font-family: var(--font-body); font-weight: 500; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.hint { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+.tabs { display: flex; gap: 8px; overflow-x: auto; padding-block: 8px 14px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 5; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px; padding: 10px 20px; font-weight: 700; min-height: 44px; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .tab[aria-selected="true"] { color: #1a0d06; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tab[aria-selected="true"] { color: #1a0d06; } }
+
+/* menu grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 14px; padding-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .25s ease, box-shadow .25s ease; box-shadow: 0 1px 2px rgb(0 0 0 / .04); }
+.card:hover { box-shadow: 0 14px 30px -12px rgb(60 20 0 / .35); }
+.card.off { opacity: 0.6; }
+/* Each dish sits under a warm spotlight in its own colour. */
+.tile { height: 150px; display: grid; place-items: center; position: relative; padding: 6px 10px 0;
+  background: radial-gradient(ellipse 70% 80% at 50% 28%, color-mix(in srgb, hsl(var(--h) 80% 55%) 26%, var(--surface)), color-mix(in srgb, hsl(var(--h) 60% 45%) 8%, var(--surface)) 70%); }
+.tile .d3 { max-width: 230px; }
+/* Real photos fill the top of the card and zoom in slightly on hover. */
+.tile.ph { padding: 0; height: 170px; overflow: hidden; background: var(--line); }
+.tile .photo { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s ease; }
+.card:hover .tile .photo { transform: scale(1.06); }
+.tile.ph::after { content: ""; position: absolute; inset: auto 0 0 0; height: 40%; background: linear-gradient(transparent, rgb(0 0 0 / .18)); pointer-events: none; }
+/* In the hero, photos become round "plates" seen from slightly above. */
+.hero .hd.ph img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 50%; display: block; border: 5px solid rgb(255 245 235 / .9);
+  transform: rotateX(28deg); box-shadow: 0 22px 30px -10px rgb(0 0 0 / .6); }
+.hero .hd.ph { width: 46%; left: 27%; top: 10%; }
+.hero .hd.ph.l { width: 36%; left: 2%; top: 12%; }
+.hero .hd.ph.r { width: 36%; left: 62%; top: 12%; }
+
+/* hero: three dishes in perspective over a warm glow */
+.hero { position: relative; border-radius: 18px; overflow: hidden; margin: 4px 0 10px; color: #fff4ea;
+  background: radial-gradient(ellipse 60% 90% at 70% 60%, #b34a12 0%, #5a1f08 55%, #2a0e04 100%); min-height: 190px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; }
+.hero .copy { padding: 22px 0 22px 22px; position: relative; z-index: 2; }
+.hero .copy b { display: block; font-family: var(--font-display); font-weight: 800; font-size: clamp(1.35rem, 4.6vw, 2.2rem); line-height: 1.02; letter-spacing: -0.02em; }
+.hero .copy span { display: block; margin-top: 8px; font-size: 0.92rem; opacity: 0.85; }
+.hero .stage { position: relative; height: 190px; perspective: 700px; }
+.hero .hd { position: absolute; width: 62%; aspect-ratio: 4 / 3; left: 19%; top: 18%; transform-style: preserve-3d; animation: herofloat 6s ease-in-out infinite; filter: drop-shadow(0 18px 18px rgb(0 0 0 / .45)); }
+.hero .hd.l { left: -6%; top: 6%; width: 50%; transform: translateZ(-60px) rotateY(22deg); animation-delay: -2s; filter: drop-shadow(0 14px 14px rgb(0 0 0 / .4)) brightness(.85); }
+.hero .hd.r { left: 58%; top: 4%; width: 50%; transform: translateZ(-60px) rotateY(-22deg); animation-delay: -4s; filter: drop-shadow(0 14px 14px rgb(0 0 0 / .4)) brightness(.85); }
+.hero .glow { position: absolute; inset: auto 10% 6% 10%; height: 30px; background: radial-gradient(ellipse, rgb(255 170 90 / .45), transparent 70%); }
+@keyframes herofloat { 50% { translate: 0 -6px; } }
+@media (max-width: 520px) { .hero { grid-template-columns: 1fr; } .hero .copy { padding: 18px 18px 0; } .hero .stage { height: 170px; } }
+@media (prefers-reduced-motion: reduce) { .hero .hd { animation: none; } .card { transition: none; } }
+.diet { position: absolute; z-index: 1; top: 10px; left: 10px; width: 18px; height: 18px; border: 2px solid var(--veg); background: var(--surface); border-radius: 3px; display: grid; place-items: center; }
+.diet::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--veg); }
+.diet.nv { border-color: var(--nonveg); }
+.diet.nv::after { background: var(--nonveg); }
+.body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.name { font-family: var(--font-display); font-weight: 600; font-size: 1.12rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+.desc { color: var(--muted); font-size: 0.88rem; margin: 0; flex: 1; }
+.spice { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.price { font-weight: 700; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.add { background: var(--action); color: var(--action-ink); border: 0; border-radius: 8px; font-weight: 700; letter-spacing: 0.06em; padding: 0 22px; min-height: 44px; }
+.add[disabled] { background: var(--line); color: var(--muted); cursor: not-allowed; }
+.na { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; color: var(--nonveg); }
+.step { display: inline-flex; align-items: center; border: 1.5px solid var(--action); border-radius: 8px; overflow: hidden; }
+.step button { width: 44px; height: 44px; border: 0; background: transparent; font-size: 1.3rem; font-weight: 700; color: var(--action); }
+.step output { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* bottom bar */
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--ink); color: var(--bg); z-index: 20;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.bar .in { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bar .tot { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.bar .tot small { font-family: var(--font-body); font-weight: 500; font-size: 0.8rem; opacity: 0.75; margin-left: 8px; }
+.cta { background: var(--action); color: var(--action-ink); border: 0; border-radius: 8px; font-weight: 700; font-size: 1rem; padding: 0 26px; min-height: 48px; }
+.cta[disabled] { opacity: 0.45; cursor: not-allowed; }
+.cta.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+
+/* sheet */
+.sheet { position: fixed; inset: 0; background: var(--bg); z-index: 30; overflow-y: auto;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.sheet .wrap { max-width: 640px; }
+.sheet h2 { font-family: var(--font-display); font-size: 1.7rem; letter-spacing: -0.01em; margin: 6px 0 4px; }
+.crumbs { display: flex; gap: 8px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.crumbs span.on { color: var(--accent); }
+.line { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.line .nm { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.line .each { color: var(--muted); font-size: 0.85rem; }
+.line .amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.sum { display: grid; gap: 6px; padding-block: 16px; font-variant-numeric: tabular-nums; }
+.sum div { display: flex; justify-content: space-between; }
+.sum .grand { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; border-top: 2px solid var(--ink); padding-top: 10px; margin-top: 4px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.row > * { flex: 1 1 160px; }
+label { display: block; font-weight: 700; font-size: 0.9rem; margin: 18px 0 6px; }
+input[type="text"], input[type="tel"] { width: 100%; font: inherit; font-size: 1.15rem; padding: 14px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); }
+.phone { display: flex; }
+.phone .cc { display: grid; place-items: center; padding: 0 14px; border: 1.5px solid var(--line); border-right: 0; border-radius: 8px 0 0 8px; background: var(--accent-soft); font-weight: 700; }
+.phone input { border-radius: 0 8px 8px 0; font-family: var(--font-mono); letter-spacing: 0.08em; }
+.err { color: var(--nonveg); font-size: 0.9rem; min-height: 1.3em; margin: 6px 0 0; }
+.welcome { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin: 10px 0 0; font-weight: 500; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.seg button { border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; padding: 14px; font-weight: 700; min-height: 48px; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+/* table tools and QR sheet */
+.tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.badge { background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 800; border-radius: 999px; padding: 8px 18px; font-size: 1.05rem; }
+.linkbtn { background: transparent; border: 1.5px solid var(--line); border-radius: 8px; padding: 0 14px; min-height: 44px; font-weight: 700; color: var(--accent); }
+.chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
+.chips button { border: 1.5px solid var(--line); background: var(--surface); border-radius: 8px; padding: 14px 0; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; min-height: 52px; }
+.chips button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.chips .fixed { grid-column: 1 / -1; margin: 0; border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 14px 16px; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; }
+.qgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 14px; margin-top: 18px; }
+.qcard { background: #fff; color: #111; border: 1px solid var(--line); border-radius: 10px; padding: 16px 14px 14px; text-align: center; min-width: 0; }
+.qcard .qt { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; }
+.qcard svg { width: 100%; max-width: 200px; height: auto; display: block; margin: 10px auto; }
+.qcard .qs { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.8rem; }
+.qcard .qu { font-family: var(--font-mono); font-size: 0.68rem; color: #555; margin-top: 8px; overflow-wrap: anywhere; }
+
+/* slip: always paper-on-ink, in both themes */
+.slip { background: var(--paper); color: var(--paper-ink); font-family: var(--font-mono); font-size: 0.86rem; line-height: 1.5; padding: 22px 20px 26px; margin: 18px auto 0; max-width: 360px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.22);
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%; mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%; padding-bottom: 34px; }
+.slip .c { text-align: center; }
+.slip .shop { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; letter-spacing: 0.02em; }
+.slip hr { border: 0; border-top: 1.5px dashed var(--paper-line); margin: 10px 0; }
+.slip .token { font-family: var(--font-display); font-weight: 800; font-size: 3rem; line-height: 1; }
+.slip .r { display: flex; justify-content: space-between; gap: 10px; }
+.slip .it { display: grid; grid-template-columns: 2.2em 1fr auto; gap: 6px; }
+.slip .it span:last-child { text-align: right; }
+.slip .big { font-weight: 600; font-size: 1.05rem; }
+.slip .nm2 { overflow-wrap: anywhere; }
+.round { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
+.round.mine { border-color: var(--action); }
+.rhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rhead b { font-family: var(--font-display); font-size: 1.1rem; }
+.st { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 999px; padding: 4px 10px; background: var(--accent-soft); color: var(--accent); }
+.st.preparing { background: color-mix(in srgb, #e9b44c 30%, var(--surface)); color: var(--ink); }
+.st.ready, .st.served { background: color-mix(in srgb, var(--action) 15%, var(--surface)); color: var(--action); }
+.rline { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.rline:last-of-type { border-bottom: 0; }
+.rline .nm { min-width: 0; overflow-wrap: anywhere; }
+.rline .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rnote { color: var(--muted); font-size: 0.85rem; margin: 6px 0 0; }
+.ract { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ract .cta { min-height: 44px; padding: 0 18px; flex: 1 1 120px; }
+.toast { color: var(--action); font-weight: 700; min-height: 1.4em; text-align: center; margin: 12px 0 0; }
+@media print {
+  body * { visibility: hidden; }
+  .slip, .slip * { visibility: visible; }
+  .slip { position: absolute; left: 0; top: 0; margin: 0; max-width: 80mm; box-shadow: none; -webkit-mask: none; mask: none; }
+}
+@media (prefers-reduced-motion: no-preference) { .card, .add, .cta { transition: transform .12s ease; } .add:active, .cta:active { transform: scale(0.97); } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1 class="brand"><small>Self order</small><span id="brandName">&nbsp;</span></h1>
+    <div class="tools"><button class="linkbtn" id="billBtn" type="button" hidden></button><span class="badge" id="tableBadge" hidden></span></div>
+  </header>
+  <section class="hero" id="hero" aria-label="Welcome">
+    <div class="copy"><b id="heroTitle">Freshly made, straight to your table</b><span id="heroSub">Pick your dishes below. We start cooking as soon as you order.</span></div>
+    <div class="stage" id="heroStage" aria-hidden="true"></div>
+  </section>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Menu categories"></nav>
+  <main class="grid" id="grid"></main>
+  <p class="hint" style="text-align:center;font-size:.78rem"><a href="/credits" style="color:inherit">Photo credits</a></p>
+</div>
+
+<div class="bar">
+  <div class="in">
+    <div class="tot" aria-live="polite">Total <span id="barTotal">₹0</span><small id="barCount"></small></div>
+    <button class="cta" id="viewOrder" type="button" disabled>View My Order</button>
+  </div>
+</div>
+
+<section class="sheet" id="sheet" hidden aria-label="Your order">
+  <div class="wrap">
+    <div class="crumbs" id="crumbs"></div>
+
+    <div id="vCart" hidden>
+      <h2>Your order</h2>
+      <div id="cartLines"></div>
+      <div class="sum" id="cartSum"></div>
+      <div class="row">
+        <button class="cta ghost" type="button" id="backMenu">Add more items</button>
+        <button class="cta" type="button" id="toDetails">Continue</button>
+      </div>
+    </div>
+
+    <form id="vDetails" hidden novalidate>
+      <h2>Your details</h2>
+      <p class="hint">We note your name and phone so your order can be traced.</p>
+      <label for="fName">Name</label>
+      <input id="fName" type="text" autocomplete="off" maxlength="40" placeholder="Your name">
+      <label for="fPhone">Mobile number</label>
+      <div class="phone"><span class="cc">+91</span><input id="fPhone" type="tel" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="10-digit number"></div>
+      <div id="welcome" class="welcome" hidden></div>
+      <p class="err" id="err" role="alert"></p>
+      <label>Order type</label>
+      <div class="seg" id="seg">
+        <button type="button" data-v="Dine in" aria-pressed="true">Dine in</button>
+        <button type="button" data-v="Takeaway" aria-pressed="false">Takeaway</button>
+      </div>
+      <div id="tableWrap">
+        <label>Your table</label>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="sum" id="detSum"></div>
+      <div class="row">
+        <button class="cta ghost" type="button" id="backCart">Back</button>
+        <button class="cta" type="submit" id="placeBtn">Place order</button>
+      </div>
+    </form>
+
+    <div id="vSlip" hidden>
+      <h2>Order placed</h2>
+      <p class="hint">Show this slip at the counter when your token is called.</p>
+      <div class="slip" id="slip"></div>
+      <p class="toast" id="toast" aria-live="polite"></p>
+      <div class="row" style="max-width:360px;margin-inline:auto">
+        <button class="cta ghost" type="button" id="printSlip">Print slip</button>
+        <button class="cta ghost" type="button" id="copySlip">Copy slip text</button>
+        <button class="cta" type="button" id="newOrder">New order</button>
+      </div>
+    </div>
+
+    <!-- Table guests stay here after ordering: live status, edit until the kitchen starts, add more until they pay. -->
+    <div id="vBill" hidden>
+      <h2 id="billTitle">Your table order</h2>
+      <p class="toast" id="billToast" aria-live="polite"></p>
+      <p class="hint">You can change an order until the kitchen starts cooking it, and add more dishes any time until you pay.</p>
+      <div id="billRounds"></div>
+      <div class="sum" id="billSum"></div>
+      <p class="welcome" id="billDone" hidden>We have told the staff. Your bill is on its way. You can still add dishes if you like.</p>
+      <p class="err" id="billErr" role="alert"></p>
+      <div class="row">
+        <button class="cta ghost" type="button" id="finishBtn">Finish &amp; ask for bill</button>
+        <button class="cta" type="button" id="billMore">Add more items</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/dish3d.js"></script>
+<script>
+(function () {
+  var SHOP = { name: "", gst: 0.05, tables: 3 };
+  var CATS = [];
+  var MENU = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var cart = {}, cat = CATS[0], otype = "Dine in", lastText = "", table = null, urlTable = null, bill = null;
+
+
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = { "Content-Type": "application/json" };
+    return fetch(url, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) {
+          var msg = d.detail && d.detail.message ? d.detail.message : "Something went wrong. Please try again.";
+          var e = new Error(msg); e.status = r.status; throw e;
+        }
+        return d;
+      });
+    });
+  }
+  function loadMenu() {
+    return api("/api/menu").then(function (d) {
+      MENU = d.items.map(function (m) { return { id: m.id, cat: m.category, name: m.name, desc: m.description, price: m.price, veg: m.veg, spice: m.spice, hue: m.hue, ok: m.available, image: m.image }; });
+      CATS = d.categories;
+      SHOP.name = d.shop.name; $("brandName").textContent = d.shop.name; document.title = d.shop.name + " self order"; SHOP.gst = d.shop.gst_percent / 100; SHOP.tables = d.shop.tables;
+      if (CATS.indexOf(cat) < 0) cat = CATS[0];
+      Object.keys(cart).forEach(function (id) { var m = MENU.filter(function (x) { return x.id === id; })[0]; if (!m || !m.ok) delete cart[id]; });
+    });
+  }
+
+  function inr(n) { return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]; }); }
+
+  function totals() {
+    var sub = 0, n = 0;
+    MENU.forEach(function (m) { var q = cart[m.id] || 0; sub += q * m.price; n += q; });
+    var tax = Math.round(sub * SHOP.gst);
+    return { sub: sub, tax: tax, total: sub + tax, n: n };
+  }
+
+  function renderTabs() {
+    $("tabs").innerHTML = CATS.map(function (c) {
+      return '<button class="tab" role="tab" type="button" data-c="' + esc(c) + '" aria-selected="' + (c === cat) + '">' + esc(c) + '</button>';
+    }).join("");
+  }
+  // 3D dish pictures are drawn once per item and reused, since the grid redraws on every tap.
+  var arts = {};
+  function art(m) {
+    // A real photo when the owner has one; otherwise the drawn dish.
+    if (m.image) return '<img class="photo" src="' + esc(m.image) + '" alt="' + esc(m.name) + '" loading="lazy" decoding="async">';
+    if (!window.Dish3D) return "";
+    var key = m.id + "|" + m.name + "|" + m.hue;
+    return arts[key] || (arts[key] = Dish3D.svg({ id: m.id, name: m.name, cat: m.cat, hue: m.hue }));
+  }
+  function renderHero() {
+    var pick = [];
+    // One dish from each of the first three categories, so the hero shows the range of the menu.
+    CATS.forEach(function (c) { var m = MENU.filter(function (x) { return x.cat === c && x.ok; })[0]; if (m && pick.length < 3) pick.push(m); });
+    MENU.forEach(function (m) { if (pick.length < 3 && pick.indexOf(m) < 0 && m.ok) pick.push(m); });
+    var order = [pick[1], pick[2], pick[0]], cls = ["hd l", "hd r", "hd"];
+    $("heroStage").innerHTML = window.Dish3D ? order.map(function (m, i) {
+      if (!m) return "";
+      return '<div class="' + cls[i] + (m.image ? " ph" : "") + '">' + (m.image ? '<img src="' + esc(m.image) + '" alt="">' : Dish3D.svg({ id: m.id + "-hero", name: m.name, cat: m.cat, hue: m.hue })) + '</div>';
+    }).join("") + '<div class="glow"></div>' : "";
+    $("heroTitle").textContent = urlTable ? "Welcome to Table " + urlTable : "Freshly made, straight to your table";
+    $("heroSub").textContent = urlTable ? "Order from your phone. Add more dishes any time until you pay." : "Pick your dishes below. We start cooking as soon as you order.";
+  }
+  var SPICE = ["Mild", "Medium spicy", "Spicy", "Very spicy"];
+  function renderGrid() {
+    $("grid").innerHTML = MENU.filter(function (m) { return m.cat === cat; }).map(function (m) {
+      var q = cart[m.id] || 0, ctl;
+      if (!m.ok) ctl = '<span class="na">NOT AVAILABLE</span>';
+      else if (q) ctl = '<span class="step"><button type="button" data-d="-1" data-id="' + m.id + '" aria-label="Remove one ' + esc(m.name) + '">−</button><output>' + q + '</output><button type="button" data-d="1" data-id="' + m.id + '" aria-label="Add one ' + esc(m.name) + '">+</button></span>';
+      else ctl = '<button class="add" type="button" data-d="1" data-id="' + m.id + '">ADD</button>';
+      return '<article class="card' + (m.ok ? "" : " off") + '"><div class="tile' + (m.image ? " ph" : "") + '" style="--h:' + m.hue + '"><span class="diet' + (m.veg ? "" : " nv") + '" title="' + (m.veg ? "Vegetarian" : "Non-vegetarian") + '"></span>' + art(m) + '</div>' +
+        '<div class="body"><h3 class="name">' + esc(m.name) + '</h3><p class="desc">' + esc(m.desc) + '</p>' +
+        (m.spice ? '<span class="spice">' + SPICE[m.spice] + '</span>' : '') +
+        '<div class="foot"><span class="price">' + inr(m.price) + '</span>' + ctl + '</div></div></article>';
+    }).join("");
+  }
+  function renderBar() {
+    var t = totals();
+    $("barTotal").textContent = inr(t.sub);
+    $("barCount").textContent = t.n ? t.n + (t.n === 1 ? " item" : " items") : "";
+    $("viewOrder").disabled = !t.n;
+  }
+  function change(id, d) {
+    var q = Math.max(0, (cart[id] || 0) + d);
+    if (q) cart[id] = q; else delete cart[id];
+    renderGrid(); renderBar();
+    if (!$("sheet").hidden) renderCart();
+  }
+
+  function sumHtml(t) {
+    return '<div><span>Subtotal</span><span>' + inr(t.sub) + '</span></div><div><span>GST ' + (SHOP.gst * 100) + '%</span><span>' + inr(t.tax) + '</span></div><div class="grand"><span>Total</span><span>' + inr(t.total) + '</span></div>';
+  }
+  function renderCart() {
+    var t = totals();
+    if (!t.n) { closeSheet(); return; }
+    $("cartLines").innerHTML = MENU.filter(function (m) { return cart[m.id]; }).map(function (m) {
+      return '<div class="line"><div><div class="nm">' + esc(m.name) + '</div><div class="each">' + inr(m.price) + ' each</div></div><div class="amt">' + inr(m.price * cart[m.id]) + '</div>' +
+        '<span class="step"><button type="button" data-d="-1" data-id="' + m.id + '" aria-label="Remove one ' + esc(m.name) + '">−</button><output>' + cart[m.id] + '</output><button type="button" data-d="1" data-id="' + m.id + '" aria-label="Add one ' + esc(m.name) + '">+</button></span><span></span></div>';
+    }).join("");
+    $("cartSum").innerHTML = sumHtml(t);
+  }
+
+  var STEPS = ["Order", "Details", "Slip"];
+  function show(v) {
+    ["vCart", "vDetails", "vSlip", "vBill"].forEach(function (k) { $(k).hidden = k !== v; });
+    var i = { vCart: 0, vDetails: 1, vSlip: 2 }[v];
+    $("crumbs").innerHTML = i === undefined ? "" : STEPS.map(function (s, j) { return '<span class="' + (j === i ? "on" : "") + '">' + s + '</span>'; }).join(" / ");
+    $("sheet").scrollTop = 0;
+  }
+  function openSheet() { $("sheet").hidden = false; renderCart(); show("vCart"); }
+  function closeSheet() { $("sheet").hidden = true; }
+
+  function parseHash() {
+    var m = /^\d{1,2}$/.exec(new URLSearchParams(location.search).get("table") || ""), n = m ? parseInt(m[0], 10) : null;
+    urlTable = n && n >= 1 && n <= SHOP.tables ? n : null;
+    table = urlTable;
+    if (urlTable) otype = "Dine in";
+  }
+  function syncType() {
+    Array.prototype.forEach.call($("seg").children, function (b) { b.setAttribute("aria-pressed", String(b.dataset.v === otype)); });
+    $("tableWrap").hidden = otype !== "Dine in";
+    var h = "";
+    // A table QR code fixes the table; only the counter kiosk (no ?table=) shows the picker.
+    if (urlTable) h = '<p class="fixed">Table ' + urlTable + '</p>';
+    else for (var i = 1; i <= SHOP.tables; i++) h += '<button type="button" data-t="' + i + '" aria-pressed="' + (table === i) + '">' + i + '</button>';
+    $("chips").innerHTML = h;
+    var bd = $("tableBadge");
+    bd.hidden = !(urlTable && otype === "Dine in");
+    bd.textContent = "Table " + urlTable;
+  }
+  function validate() {
+    var name = $("fName").value.trim(), ph = $("fPhone").value.replace(/\D/g, "");
+    if (name.length < 2) return "Enter your name.";
+    if (!/^[6-9]\d{9}$/.test(ph)) return "Enter a valid 10-digit mobile number starting with 6, 7, 8 or 9.";
+    if (otype === "Dine in" && !table) return "Choose your table.";
+    return "";
+  }
+  var lookedUp = "";
+  function checkGuest() {
+    var ph = $("fPhone").value.replace(/\D/g, ""), box = $("welcome");
+    if (!/^[6-9]\d{9}$/.test(ph)) { box.hidden = true; lookedUp = ""; return; }
+    if (ph === lookedUp) return;
+    lookedUp = ph;
+    api("/api/customers/lookup?phone=" + ph).then(function (g) {
+      if (ph !== $("fPhone").value.replace(/\D/g, "")) return;
+      if (g.found) {
+        if (!$("fName").value.trim()) $("fName").value = g.name;
+        box.textContent = "Welcome back, " + g.name + ". This is order number " + (g.orders + 1) + " with us.";
+        box.hidden = false;
+      } else box.hidden = true;
+    }).catch(function () { box.hidden = true; });
+  }
+
+  function slipText(o) {
+    var W = 34, rule = new Array(W + 1).join("-");
+    function lr(a, b) { return a + new Array(Math.max(1, W - a.length - b.length + 1)).join(" ") + b; }
+    var L = [o.shop_name || SHOP.name, rule, "TOKEN #" + o.token + "  " + o.type_label, o.created_label, "Name:  " + o.name, "Phone: +91 " + o.phone_masked, rule];
+    o.items.forEach(function (i) { L.push(lr(i.qty + "x " + i.name, inr(i.line))); });
+    L.push(rule, lr("Subtotal", inr(o.subtotal)), lr("GST " + o.gst_percent + "%", inr(o.gst)), lr("TOTAL", inr(o.total)), rule, "Thank you, " + o.name + "!");
+    return L.join("\n");
+  }
+  function renderSlip(o) {
+    $("slip").innerHTML =
+      '<div class="c shop">' + esc(SHOP.name) + '</div><hr>' +
+      '<div class="c">TOKEN</div><div class="c token">#' + o.token + '</div><div class="c big">' + esc(o.type_label) + '</div><hr>' +
+      '<div class="r"><span>' + esc(o.created_label) + '</span></div><div class="r"><span>Name</span><span class="nm2">' + esc(o.name) + '</span></div><div class="r"><span>Phone</span><span>+91 ' + esc(o.phone_masked) + '</span></div><hr>' +
+      o.items.map(function (i) { return '<div class="it"><span>' + i.qty + 'x</span><span>' + esc(i.name) + '</span><span>' + inr(i.line) + '</span></div>'; }).join("") + '<hr>' +
+      '<div class="r"><span>Subtotal</span><span>' + inr(o.subtotal) + '</span></div><div class="r"><span>GST ' + o.gst_percent + '%</span><span>' + inr(o.gst) + '</span></div><div class="r big"><span>TOTAL</span><span>' + inr(o.total) + '</span></div><hr>' +
+      '<div class="c">Thank you, ' + esc(o.name) + '!</div>';
+  }
+  // Running table bill: only for guests who came in through a table QR code (the counter kiosk is shared).
+  // The phone remembers the guest for as long as that bill is open, so reloading or rescanning keeps their session.
+  // keys: order id -> edit key, for the orders this phone placed (only those can be changed from here).
+  var known = false, keys = {}, editing = null, poll = null;
+  function guestKey() { return "kk-guest-" + urlTable; }
+  function saveGuest(billId) {
+    try { localStorage.setItem(guestKey(), JSON.stringify({ bill: billId, name: $("fName").value.trim(), phone: $("fPhone").value.replace(/\D/g, ""), keys: keys })); } catch (e) {}
+    known = true;
+  }
+  function restoreGuest() {
+    var g = null;
+    try { g = JSON.parse(localStorage.getItem(guestKey()) || "null"); } catch (e) {}
+    if (g && bill && g.bill === bill.id) {
+      if (!$("fName").value.trim()) $("fName").value = g.name;
+      if (!$("fPhone").value) $("fPhone").value = g.phone;
+      keys = g.keys || {};
+      known = true;
+    } else {
+      // Bill paid and closed (or someone else's): forget this phone's guest details.
+      try { localStorage.removeItem(guestKey()); } catch (e) {}
+      if (known) { $("fName").value = ""; $("fPhone").value = ""; }
+      known = false; keys = {}; editing = null;
+    }
+    $("toDetails").textContent = known ? "Place order" : "Continue";
+  }
+  function loadBill() {
+    if (!urlTable) return Promise.resolve();
+    return api("/api/tables/" + urlTable + "/bill").then(function (d) { bill = d.bill; restoreGuest(); renderBill(); }).catch(function () {});
+  }
+  var STATUS = { new: "Sent to kitchen", preparing: "Being prepared", ready: "Ready", served: "Served" };
+  function mine(r) { return !!keys[r.id]; }
+  function editable(r) { return mine(r) && r.status === "new"; }
+  function renderBill() {
+    var b = $("billBtn");
+    b.hidden = !bill;
+    if (!bill) {
+      if (!$("vBill").hidden) { $("billRounds").innerHTML = '<p class="welcome">This table has been paid and closed. Thank you!</p>'; $("billSum").innerHTML = ""; }
+      return;
+    }
+    b.textContent = "Your order " + inr(bill.total);
+    $("billTitle").textContent = "Table " + bill.table + " order";
+    if (editing && !bill.rounds.some(function (r) { return r.id === editing.id && editable(r); })) editing = null;
+    $("billRounds").innerHTML = bill.rounds.map(function (r) {
+      var ed = editing && editing.id === r.id, lines;
+      if (ed) {
+        lines = r.items.map(function (i) {
+          var q = editing.qty[i.id] || 0;
+          return '<div class="rline"><span class="nm">' + esc(i.name) + '<br><span class="each">' + inr(i.price) + ' each</span></span>' +
+            '<span class="step"><button type="button" data-eid="' + esc(i.id) + '" data-d="-1" aria-label="One less ' + esc(i.name) + '">−</button><output>' + q + '</output>' +
+            '<button type="button" data-eid="' + esc(i.id) + '" data-d="1" aria-label="One more ' + esc(i.name) + '">+</button></span></div>';
+        }).join("");
+        var empty = !Object.keys(editing.qty).some(function (k) { return editing.qty[k] > 0; });
+        lines += '<div class="ract"><button class="cta ghost" type="button" data-ract="discard">Keep as it was</button>' +
+          '<button class="cta" type="button" data-ract="save">' + (empty ? "Remove this order" : "Save changes") + '</button></div>';
+      } else {
+        lines = r.items.map(function (i) {
+          return '<div class="rline"><span class="nm">' + i.qty + ' x ' + esc(i.name) + '</span><span class="amt">' + inr(i.line) + '</span></div>';
+        }).join("");
+        if (editable(r)) lines += '<div class="ract"><button class="cta ghost" type="button" data-ract="edit">Edit this order</button></div>';
+        else if (mine(r) && r.status !== "served") lines += '<p class="rnote">The kitchen is on it, so this order can no longer be changed. Use Add more items for anything else.</p>';
+      }
+      return '<section class="round' + (mine(r) ? " mine" : "") + '" data-rid="' + r.id + '"><div class="rhead"><b>Order #' + r.token + (mine(r) ? "" : " (table)") + '</b>' +
+        '<span class="st ' + r.status + '">' + (STATUS[r.status] || r.status) + '</span></div>' + lines + '</section>';
+    }).join("") || '<p class="hint">Nothing ordered yet.</p>';
+    $("billSum").innerHTML = sumHtml({ sub: bill.subtotal, tax: bill.gst, total: bill.total });
+    var asked = bill.status === "bill_requested";
+    $("billDone").hidden = !asked;
+    $("finishBtn").hidden = asked;
+  }
+  function openBill(msg) {
+    $("billErr").textContent = ""; $("billToast").textContent = typeof msg === "string" ? msg : "";
+    $("sheet").hidden = false; renderBill(); show("vBill");
+    loadBill();
+    // Keep the kitchen status fresh while the guest looks at their order (not while they are editing).
+    clearInterval(poll);
+    poll = setInterval(function () {
+      if ($("sheet").hidden || $("vBill").hidden) { clearInterval(poll); return; }
+      if (!editing) loadBill();
+    }, 8000);
+  }
+  function orderMore() {
+    // Same guest, same table: keep their name and phone, start a fresh cart.
+    cart = {}; cat = CATS[0]; $("err").textContent = ""; editing = null;
+    closeSheet(); renderTabs(); renderGrid(); renderBar(); window.scrollTo(0, 0);
+    loadBill();
+  }
+  function saveEdit() {
+    var id = editing.id, items = Object.keys(editing.qty).filter(function (k) { return editing.qty[k] > 0; }).map(function (k) { return { id: k, qty: editing.qty[k] }; });
+    $("billErr").textContent = "";
+    api("/api/orders/" + id + "/items", { method: "PUT", body: JSON.stringify({ edit_key: keys[id], items: items }) }).then(function (o) {
+      editing = null;
+      $("billToast").textContent = o.status === "cancelled" ? "Order #" + o.token + " removed." : "Order #" + o.token + " updated. The kitchen has the new list.";
+      loadBill();
+    }).catch(function (e) {
+      editing = null;
+      $("billErr").textContent = e.status === undefined ? "Cannot reach the server. Try again." : e.message;
+      loadBill();
+    });
+  }
+  // Adding dishes: join this phone's order if the kitchen has not started it, otherwise send a new order.
+  function addToOpenOrder() {
+    var r = bill && bill.rounds.filter(editable).pop();
+    if (!r) return null;
+    var qty = {};
+    r.items.forEach(function (i) { qty[i.id] = i.qty; });
+    Object.keys(cart).forEach(function (id) { qty[id] = Math.min(20, (qty[id] || 0) + cart[id]); });
+    var items = Object.keys(qty).map(function (k) { return { id: k, qty: qty[k] }; });
+    return api("/api/orders/" + r.id + "/items", { method: "PUT", body: JSON.stringify({ edit_key: keys[r.id], items: items }) })
+      .then(function (o) { return { order: o, added: true }; });
+  }
+
+  var busy = false;
+  function place() {
+    if (busy) return;
+    busy = true;
+    var btn = $("placeBtn"), cbtn = $("toDetails");
+    btn.disabled = cbtn.disabled = true; btn.textContent = "Placing order...";
+    var body = {
+      name: $("fName").value.trim(), phone: $("fPhone").value.replace(/\D/g, ""), order_type: otype,
+      table: otype === "Dine in" ? table : null,
+      items: Object.keys(cart).map(function (id) { return { id: id, qty: cart[id] }; })
+    };
+    function post() { return api("/api/orders", { method: "POST", body: JSON.stringify(body) }).then(function (o) { return { order: o, added: false }; }); }
+    var go = (urlTable && known && otype === "Dine in" && addToOpenOrder()) || post();
+    // If the kitchen started that order a moment ago, send the dishes as a new order instead.
+    go.catch(function (e) { if (e.status === 409 && /kitchen/i.test(e.message)) return post(); throw e; }).then(function (res) {
+      var o = res.order;
+      if (urlTable && o.bill_id) {
+        if (o.edit_key) keys[o.id] = o.edit_key;
+        saveGuest(o.bill_id);
+        cart = {}; renderGrid(); renderBar();
+        openBill(res.added ? "Added to your order #" + o.token + "." : "Order #" + o.token + " has gone to the kitchen.");
+        return;
+      }
+      lastText = slipText(o); renderSlip(o); $("toast").textContent = "Your order has gone to the kitchen."; show("vSlip");
+    }).catch(function (e) {
+      if ($("vDetails").hidden) { $("detSum").innerHTML = sumHtml(totals()); show("vDetails"); }   // a follow-up order failed from the cart
+      $("err").textContent = e.status === undefined ? "Cannot reach the server. Check the connection and try again." : e.message;
+      if (e.status === 409) loadMenu().then(function () { renderGrid(); renderBar(); renderCart(); });
+    }).then(function () {
+      busy = false; btn.disabled = cbtn.disabled = false; btn.textContent = "Place order";
+    });
+  }
+
+  function reset() {
+    cart = {}; cat = CATS[0]; otype = "Dine in"; table = urlTable;
+    $("fName").value = ""; $("fPhone").value = ""; $("err").textContent = ""; $("welcome").hidden = true; lookedUp = "";
+    syncType();
+    closeSheet(); renderTabs(); renderGrid(); renderBar(); window.scrollTo(0, 0);
+  }
+
+  $("tabs").addEventListener("click", function (e) { var b = e.target.closest(".tab"); if (b) { cat = b.dataset.c; renderTabs(); renderGrid(); } });
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-id]"); if (b) change(b.dataset.id, parseInt(b.dataset.d, 10));
+  });
+  $("viewOrder").addEventListener("click", openSheet);
+  $("backMenu").addEventListener("click", closeSheet);
+  $("toDetails").addEventListener("click", function () {
+    // A guest already on this table's open bill orders straight from the cart.
+    if (known && !validate()) { place(); return; }
+    $("detSum").innerHTML = sumHtml(totals()); show("vDetails"); $("fName").focus();
+  });
+  $("backCart").addEventListener("click", function () { renderCart(); show("vCart"); });
+  $("fPhone").addEventListener("input", function () { this.value = this.value.replace(/\D/g, "").slice(0, 10); checkGuest(); });
+  $("seg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return; otype = b.dataset.v;
+    syncType();
+  });
+  $("chips").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-t]"); if (!b || urlTable) return; table = parseInt(b.dataset.t, 10); $("err").textContent = ""; syncType();
+  });
+  $("vDetails").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var msg = validate(); $("err").textContent = msg;
+    if (!msg) place();
+  });
+  $("copySlip").addEventListener("click", function () {
+    function ok() { $("toast").textContent = "Slip copied."; }
+    function fallback() {
+      var r = document.createRange(); r.selectNodeContents($("slip")); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      $("toast").textContent = "Slip selected. Copy it with your keyboard.";
+    }
+    try { navigator.clipboard.writeText(lastText).then(ok, fallback); } catch (e) { fallback(); }
+  });
+  $("printSlip").addEventListener("click", function () { window.print(); });
+  $("newOrder").addEventListener("click", reset);
+  $("billMore").addEventListener("click", orderMore);
+  $("billBtn").addEventListener("click", openBill);
+  $("billRounds").addEventListener("click", function (e) {
+    var s = e.target.closest("[data-eid]");
+    if (s && editing) {
+      editing.qty[s.dataset.eid] = Math.max(0, Math.min(20, (editing.qty[s.dataset.eid] || 0) + parseInt(s.dataset.d, 10)));
+      renderBill(); return;
+    }
+    var a = e.target.closest("[data-ract]"); if (!a) return;
+    var id = parseInt(a.closest("[data-rid]").dataset.rid, 10);
+    if (a.dataset.ract === "edit") {
+      var r = bill.rounds.filter(function (x) { return x.id === id; })[0], qty = {};
+      r.items.forEach(function (i) { qty[i.id] = i.qty; });
+      editing = { id: id, qty: qty }; $("billToast").textContent = ""; renderBill();
+    } else if (a.dataset.ract === "discard") { editing = null; renderBill(); }
+    else if (a.dataset.ract === "save") { a.disabled = true; saveEdit(); }
+  });
+  $("finishBtn").addEventListener("click", function () {
+    var b = this; b.disabled = true; $("billErr").textContent = "";
+    api("/api/tables/" + urlTable + "/bill/request", { method: "POST" }).then(function (d) { bill = d.bill; renderBill(); })
+      .catch(function (e) { $("billErr").textContent = e.status === undefined ? "Cannot reach the server. Try again." : e.message; })
+      .then(function () { b.disabled = false; });
+  });
+
+  $("grid").innerHTML = '<p class="hint">Loading menu...</p>';
+  function boot() {
+    loadMenu().then(function () { parseHash(); syncType(); renderHero(); renderTabs(); renderGrid(); renderBar(); loadBill(); }).catch(function () {
+      $("grid").innerHTML = '<p class="err">Cannot load the menu. <button class="linkbtn" id="retry" type="button">Try again</button></p>';
+      $("retry").addEventListener("click", boot);
+    });
+  }
+  boot();
+  if (window.Dish3D) Dish3D.tilt($("grid"), ".card");
+})();
+</script>
+</body>
+</html>

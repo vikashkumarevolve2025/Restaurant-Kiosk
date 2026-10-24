@@ -1,0 +1,4 @@
+# Only needed for PRINTER=network, usb or windows
+python-escpos>=3.0
+pyusb>=1.2
+pywin32>=306; sys_platform == "win32"

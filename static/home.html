@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Karam Kitchen</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Landing page: one card per kind of user. Staff enter their PIN here and land in their screen already signed in. */
+:root {
+  --bg: #f6f1ec; --surface: #fffdfb; --ink: #231a16; --muted: #6f625b; --line: #e4d9d0;
+  --accent: #b83a0b; --accent-soft: #fbe6da; --on-accent: #fff; --action: #1f6f4a; --action-ink: #fff; --bad: #b3261e;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+    --accent: #f0783f; --accent-soft: #3a2218; --on-accent: #1a0d06; --action: #3fae7a; --action-ink: #0d1a13; --bad: #ef6a60;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --accent-soft: #3a2218; --on-accent: #1a0d06; --action: #3fae7a; --action-ink: #0d1a13; --bad: #ef6a60;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--font-body);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px)); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+
+/* Hero: a warm, dark stage with a slowly turning carousel of 3D dishes. Dark in both themes on purpose. */
+.hero { margin: 16px 0 28px; border-radius: 22px; overflow: hidden; color: #fff4ea; position: relative;
+  background: radial-gradient(ellipse 55% 70% at 72% 62%, #c4561a 0%, #6a2409 45%, #2a0e04 85%);
+  display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; min-height: 440px; }
+.hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 15% 10%, rgb(255 200 140 / .14), transparent 40%); pointer-events: none; }
+.copy { padding: 40px 0 40px 40px; position: relative; z-index: 2; }
+.kicker { font-weight: 700; font-size: 0.8rem; letter-spacing: 0.16em; text-transform: uppercase; color: #ffb27a; margin: 0 0 10px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2.4rem, 6.5vw, 4rem); letter-spacing: -0.03em; line-height: 0.92; margin: 0; }
+.lede { color: #f3d9c6; margin: 14px 0 0; max-width: 40ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chips span { border: 1px solid rgb(255 220 190 / .3); background: rgb(255 255 255 / .07); border-radius: 999px; padding: 6px 12px; font-size: 0.85rem; font-weight: 700; }
+.heroacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.heroacts a { display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; border-radius: 10px; font-weight: 800; text-decoration: none; }
+.heroacts .go { background: #ffb27a; color: #2a0e04; }
+.heroacts .ghost { border: 1.5px solid rgb(255 220 190 / .45); color: #fff4ea; }
+
+.stage3d { position: relative; height: 440px; perspective: 1100px; perspective-origin: 50% 30%; overflow: hidden; }
+.ring { position: absolute; left: 50%; top: 48%; width: 0; height: 0; transform-style: preserve-3d; transform: rotateX(-14deg); }
+.spin { transform-style: preserve-3d; animation: spin 40s linear infinite; }
+.slot { position: absolute; transform-style: preserve-3d; transform: rotateY(var(--a)) translateZ(var(--r, 250px)); }
+.face { width: 190px; margin-left: -95px; margin-top: -90px; text-align: center; animation: 40s linear infinite; transform-style: preserve-3d; }
+.face .d3 { width: 190px; height: 140px; filter: drop-shadow(0 16px 14px rgb(0 0 0 / .45)); }
+/* A dish photo on the stand: a round plate seen from slightly above. */
+.face .plate { display: block; width: 150px; height: 150px; margin: 0 auto 6px; object-fit: cover; border-radius: 50%; border: 5px solid rgb(255 245 235 / .92);
+  transform: rotateX(32deg); box-shadow: 0 26px 26px -12px rgb(0 0 0 / .65); }
+.face .tag { display: inline-block; margin-top: -4px; padding: 4px 10px; border-radius: 999px; background: rgb(20 6 2 / .55); border: 1px solid rgb(255 220 190 / .25); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.face .tag b { color: #ffb27a; margin-left: 6px; }
+.floor { position: absolute; left: 8%; right: 8%; bottom: 40px; height: 90px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgb(255 170 90 / .35), rgb(255 120 40 / .08) 55%, transparent 72%); transform: rotateX(70deg); }
+.stage3d:hover .spin, .stage3d:hover .face { animation-play-state: paused; }
+@keyframes spin { to { transform: rotateY(-360deg); } }
+@media (max-width: 1100px) and (min-width: 761px) {
+  .slot { --r: 165px; }
+  .face { width: 136px; margin-left: -68px; margin-top: -64px; }
+  .face .d3 { width: 136px; height: 100px; }
+  .face .plate { width: 112px; height: 112px; }
+  .face .tag { font-size: 0.72rem; }
+}
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; }
+  .copy { padding: 28px 22px 0; }
+  .stage3d { height: 320px; perspective: 800px; }
+  .ring { top: 50%; transform: rotateX(-26deg); }
+  .slot { --r: 112px; }
+  .face { width: 104px; margin-left: -52px; margin-top: -52px; }
+  .face .d3 { width: 104px; height: 78px; }
+  .face .plate { width: 84px; height: 84px; border-width: 3px; }
+  .face .tag { font-size: 0.68rem; padding: 3px 8px; }
+  .face .tag b { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .spin, .face { animation: none; } }
+.section-title { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; margin: 0 0 12px; }
+
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+.role { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.role.guest { border-top: 5px solid var(--accent); }
+.role.staff { border-top: 5px solid var(--action); }
+.role.owner { border-top: 5px solid var(--ink); }
+.who { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.role h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; letter-spacing: -0.01em; line-height: 1.05; margin: 2px 0 0; }
+.role p.desc { color: var(--muted); margin: 0; }
+ul.can { margin: 0; padding-left: 1.1em; color: var(--ink); display: grid; gap: 2px; }
+
+.cta { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; background: var(--action); color: var(--action-ink); border: 0; border-radius: 8px; font-weight: 700; padding: 0 22px; min-height: 48px; width: 100%; }
+.cta.alt { background: var(--accent); color: var(--on-accent); }
+.cta.dark { background: var(--ink); color: var(--bg); }
+.cta[disabled] { opacity: 0.5; cursor: not-allowed; }
+.link { color: var(--accent); font-weight: 700; text-decoration: none; }
+.link:hover { text-decoration: underline; }
+
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.tables a { display: grid; place-items: center; min-height: 48px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); text-decoration: none; font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; }
+.tables a:hover { border-color: var(--accent); color: var(--accent); }
+.small { font-size: 0.85rem; color: var(--muted); margin: 0; }
+
+form.pin { display: grid; gap: 8px; }
+form.pin label { font-weight: 700; font-size: 0.85rem; }
+form.pin input { width: 100%; font-size: 1.25rem; letter-spacing: 0.2em; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg); }
+.err { color: var(--bad); font-size: 0.9rem; min-height: 1.3em; margin: 0; }
+
+.foot { margin-top: 28px; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="copy">
+      <p class="kicker" id="kicker">Scan. Order. Eat.</p>
+      <h1 id="shop">Karam Kitchen</h1>
+      <p class="lede">Order from your table with your phone. The kitchen sees it straight away, and you can keep adding dishes until you pay.</p>
+      <div class="chips" id="chips"></div>
+      <div class="heroacts"><a class="go" href="/">Order food</a><a class="ghost" href="#signin">Staff sign in</a></div>
+    </div>
+    <div class="stage3d" aria-hidden="true"><div class="floor"></div><div class="ring"><div class="spin" id="spin"></div></div></div>
+  </header>
+
+  <h2 class="section-title" id="signin">Who are you?</h2>
+  <main class="roles">
+    <section class="role guest" aria-labelledby="gH">
+      <div><p class="who">Customers</p><h2 id="gH">Order food</h2></div>
+      <p class="desc">No PIN needed. Guests usually scan the QR code on their table, which opens their table's menu.</p>
+      <a class="cta alt" href="/">Open the counter kiosk</a>
+      <div>
+        <p class="small" style="margin-bottom:8px">Or open the menu for a table:</p>
+        <div class="tables" id="tables"></div>
+      </div>
+    </section>
+
+    <section class="role staff" aria-labelledby="sH">
+      <div><p class="who">Kitchen staff</p><h2 id="sH">Kitchen screen</h2></div>
+      <ul class="can"><li>See new orders as they arrive</li><li>Mark orders cooking, ready, served</li><li>Close tables when paid, print bills</li><li>Mark dishes sold out</li></ul>
+      <form class="pin" data-role="kitchen" novalidate>
+        <label for="kPin">Staff PIN</label>
+        <input id="kPin" type="password" inputmode="numeric" autocomplete="off">
+        <p class="err" role="alert"></p>
+        <button class="cta" type="submit">Open kitchen</button>
+      </form>
+    </section>
+
+    <section class="role owner" aria-labelledby="oH">
+      <div><p class="who">Owner</p><h2 id="oH">Admin</h2></div>
+      <ul class="can"><li>Edit menu and prices</li><li>Sales reports and order history</li><li>Customer list, printer test</li></ul>
+      <form class="pin" data-role="admin" novalidate>
+        <label for="aPin">Owner PIN</label>
+        <input id="aPin" type="password" inputmode="numeric" autocomplete="off">
+        <p class="err" role="alert"></p>
+        <button class="cta dark" type="submit">Open admin</button>
+      </form>
+      <p class="small">Print the table QR codes: <a class="link" href="/tables">Table QR codes</a></p>
+    </section>
+  </main>
+
+  <p class="foot">The kitchen PIN cannot open admin. The owner PIN opens both. · <a class="link" href="/credits">Photo credits</a></p>
+</div>
+
+<script src="/dish3d.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  // Each screen reads its PIN from this tab's session storage and signs itself in.
+  var ROLES = {
+    kitchen: { check: "/api/orders?status=active", key: "kpin", go: "/kitchen" },
+    admin: { check: "/api/admin/settings", key: "apin", go: "/admin" }
+  };
+
+  var served = /^https?:$/.test(location.protocol);
+  if (!served) {
+    Array.prototype.forEach.call(document.querySelectorAll("form.pin"), function (f) {
+      f.querySelector(".err").textContent = "This page was opened as a file. Type http://localhost:8080/home into your browser instead.";
+      f.querySelector("button").disabled = true;
+    });
+    return;
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+  // The carousel: two dishes from each category on a turning stand; each face turns back so it always looks at you.
+  function showcase(d) {
+    if (!window.Dish3D) return;
+    var picks = [];
+    d.categories.forEach(function (c) { picks = picks.concat(d.items.filter(function (i) { return i.category === c && i.available; }).slice(0, 2)); });
+    picks = picks.slice(0, 8);
+    var step = 360 / Math.max(picks.length, 1);
+    // Each face turns back by its own angle plus the stand's turn, so it always faces the viewer.
+    var style = document.createElement("style");
+    style.textContent = picks.map(function (_, n) {
+      return "@keyframes u" + n + "{from{transform:rotateY(" + (-n * step) + "deg)}to{transform:rotateY(" + (360 - n * step) + "deg)}}";
+    }).join("");
+    document.head.appendChild(style);
+    $("spin").innerHTML = picks.map(function (i, n) {
+      return '<div class="slot" style="--a:' + (n * step) + 'deg"><div class="face" style="animation-name:u' + n + ';transform:rotateY(' + (-n * step) + 'deg)">' +
+        (i.image ? '<img class="plate" src="' + esc(i.image) + '" alt="">' : Dish3D.svg({ id: i.id, name: i.name, cat: i.category, hue: i.hue })) +
+        '<span class="tag">' + esc(i.name) + '<b>₹' + i.price + '</b></span></div></div>';
+    }).join("");
+    $("chips").innerHTML = d.categories.map(function (c) { return "<span>" + esc(c) + "</span>"; }).join("");
+  }
+
+  fetch("/api/menu").then(function (r) { return r.json(); }).then(function (d) {
+    $("shop").textContent = d.shop.name; document.title = d.shop.name;
+    showcase(d);
+    var h = "";
+    for (var i = 1; i <= d.shop.tables; i++) h += '<a href="/?table=' + i + '" aria-label="Table ' + i + ' menu">' + i + '</a>';
+    $("tables").innerHTML = h;
+  }).catch(function () { $("tables").innerHTML = '<p class="small">Cannot reach the server.</p>'; });
+
+  Array.prototype.forEach.call(document.querySelectorAll("form.pin"), function (f) {
+    var role = ROLES[f.dataset.role], input = f.querySelector("input"), err = f.querySelector(".err"), btn = f.querySelector("button");
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var pin = input.value.trim();
+      if (!pin) { err.textContent = "Enter your PIN."; input.focus(); return; }
+      btn.disabled = true; err.textContent = "";
+      fetch(role.check, { headers: { "X-Staff-Pin": pin } }).then(function (r) {
+        if (r.ok) {
+          try { sessionStorage.setItem(role.key, pin); } catch (x) {}
+          location.href = role.go;
+          return;
+        }
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          err.textContent = r.status === 401 ? "Wrong PIN." : (d.detail && d.detail.message) || "Something went wrong. Try again.";
+          input.select();
+        });
+      }).catch(function () {
+        err.textContent = "Cannot reach the server. Check the connection and try again.";
+      }).then(function () { btn.disabled = false; });
+    });
+  });
+})();
+</script>
+</body>
+</html>

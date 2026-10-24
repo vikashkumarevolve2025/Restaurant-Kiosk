@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Set up</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* First-run setup: one centred column, three short sections, one button. Same warm palette as the other screens. */
+:root {
+  --bg: #f6f1ec; --surface: #fffdfb; --ink: #231a16; --muted: #6f625b; --line: #e4d9d0;
+  --accent: #b83a0b; --accent-soft: #fbe6da; --action: #1f6f4a; --action-ink: #fff; --bad: #b3261e;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+    --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13; --bad: #ef6a60; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #17120f; --surface: #221b17; --ink: #f3ebe4; --muted: #a89a91; --line: #3a2f29;
+  --accent: #f0783f; --accent-soft: #3a2218; --action: #3fae7a; --action-ink: #0d1a13; --bad: #ef6a60; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--font-body);
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+.wrap { max-width: 640px; margin: 0 auto; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 4px; }
+h2 { font-family: var(--font-display); font-size: 1.15rem; margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 0 0 6px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-top: 18px; }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; }
+.wide { grid-column: 1 / -1; }
+label { display: block; font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; }
+input, select { font: inherit; color: inherit; width: 100%; padding: 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface); }
+input[type="checkbox"] { width: 22px; height: 22px; padding: 0; }
+.pin { font-family: var(--font-mono); letter-spacing: 0.1em; }
+.pin::placeholder { font-family: var(--font-body); letter-spacing: 0; }
+.hint { color: var(--muted); font-size: 0.88rem; margin: 4px 0 0; }
+.check { display: flex; gap: 10px; align-items: center; }
+.check label { margin: 0; }
+.btn { font: inherit; font-weight: 700; border: 0; border-radius: 8px; min-height: 50px; padding: 0 24px; background: var(--action); color: var(--action-ink); cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.err { color: var(--bad); min-height: 1.4em; margin: 12px 0 0; font-weight: 500; }
+.addr { font-family: var(--font-mono); background: var(--accent-soft); padding: 12px 14px; border-radius: 8px; overflow-wrap: anywhere; user-select: all; font-size: 1.05rem; }
+ol { padding-left: 1.2em; margin: 12px 0 0; display: grid; gap: 8px; }
+a { color: var(--accent); font-weight: 700; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">First time setup</p>
+  <h1>Set up your restaurant</h1>
+  <p class="muted" id="lead">This takes two minutes. You can change everything later in the admin screen.</p>
+
+  <section class="panel" id="blocked" hidden><h2 id="blockedTitle"></h2><p id="blockedText" class="muted"></p><div class="actions"><a href="/admin" id="blockedLink">Open admin</a></div></section>
+
+  <form id="form" novalidate hidden>
+    <section class="panel">
+      <h2>Your restaurant</h2>
+      <div class="form">
+        <div class="wide"><label for="shop">Restaurant name</label><input id="shop" maxlength="60" autocomplete="off" placeholder="For example: Spice Hut"></div>
+        <div class="wide"><label for="addr">Address on the slip</label><input id="addr" maxlength="120" autocomplete="off"></div>
+        <div><label for="gstin">GSTIN (optional)</label><input id="gstin" maxlength="15" autocomplete="off" placeholder="15 characters"></div>
+        <div><label for="gst">GST charged (%)</label><input id="gst" type="number" min="0" max="28" step="1" value="5"></div>
+        <div><label for="tables">Number of tables</label><input id="tables" type="number" min="1" max="50" step="1" value="3"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Receipt printer</h2>
+      <div class="form">
+        <div><label for="printer">Printer type</label>
+          <select id="printer">
+            <option value="windows">A printer installed in Windows</option>
+            <option value="network">Network printer (IP address)</option>
+            <option value="usb">USB printer, advanced</option>
+            <option value="none">No printer yet</option>
+            <option value="file">Save slips as text files (testing)</option>
+          </select></div>
+        <div><label for="cols">Paper</label>
+          <select id="cols"><option value="42">80 mm</option><option value="32">58 mm</option><option value="48">80 mm, small print</option></select></div>
+        <div class="wide" id="wWin"><label for="pname">Printer name (leave empty for the default printer)</label><input id="pname" maxlength="100" autocomplete="off"></div>
+        <div id="wHost" hidden><label for="phost">Printer IP address</label><input id="phost" autocomplete="off" placeholder="192.168.1.50"></div>
+        <div id="wPort" hidden><label for="pport">Port</label><input id="pport" type="number" min="1" max="65535" value="9100"></div>
+        <div id="wVen" hidden><label for="pven">USB vendor id</label><input id="pven" autocomplete="off" placeholder="0x04b8"></div>
+        <div id="wPro" hidden><label for="ppro">USB product id</label><input id="ppro" autocomplete="off" placeholder="0x0e15"></div>
+      </div>
+      <p class="hint">You can test the printer later from Admin, Tools, Print test slip.</p>
+    </section>
+
+    <section class="panel">
+      <h2>PINs</h2>
+      <div class="form">
+        <div><label for="staffPin">Kitchen PIN</label><input id="staffPin" class="pin" maxlength="20" autocomplete="off" placeholder="4 to 20 characters"><p class="hint">Used by staff on the kitchen screen.</p></div>
+        <div><label for="adminPin">Owner PIN</label><input id="adminPin" class="pin" maxlength="20" autocomplete="off" placeholder="not the same as kitchen"><p class="hint">Opens the admin screen: prices, reports, guests.</p></div>
+      </div>
+      <p class="hint">Write both down and keep them safe. They are shown here so you can check them.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Menu</h2>
+      <div class="check"><input type="checkbox" id="sample" checked><label for="sample">Start with a sample menu (you can edit or delete every item later)</label></div>
+    </section>
+
+    <p class="err" id="err" role="alert"></p>
+    <div class="actions"><button class="btn" id="go" type="submit">Finish setup</button></div>
+  </form>
+
+  <section class="panel" id="done" hidden>
+    <h2>You are ready</h2>
+    <p>Guests open this address on their phones while connected to your shop Wi-Fi:</p>
+    <p class="addr" id="guestUrl"></p>
+    <ol>
+      <li><a href="/tables">Print the table QR codes</a> and put one on each table.</li>
+      <li>In your router, reserve this computer's address so the printed codes keep working.</li>
+      <li><a href="/kitchen">Kitchen screen</a> for staff, <a href="/">Counter screen</a> for guests ordering here, <a href="/admin">Admin</a> for you.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var PIN = /^[A-Za-z0-9]{4,20}$/;
+
+  function show(id) { ["blocked", "form", "done"].forEach(function (x) { $(x).hidden = x !== id; }); }
+  function blocked(title, text, linkText, href) {
+    $("blockedTitle").textContent = title; $("blockedText").textContent = text; $("blockedLink").textContent = linkText; $("blockedLink").href = href; show("blocked");
+  }
+  function syncPrinter() {
+    var p = $("printer").value;
+    $("wWin").hidden = p !== "windows"; $("wHost").hidden = $("wPort").hidden = p !== "network"; $("wVen").hidden = $("wPro").hidden = p !== "usb";
+    $("cols").parentNode.hidden = p === "none" || p === "file";
+  }
+  $("printer").addEventListener("change", syncPrinter);
+
+  fetch("/api/setup/state").then(function (r) { return r.json(); }).then(function (st) {
+    if (st.configured) { blocked("Setup is already finished", "Change your settings in the admin screen.", "Open admin", "/admin"); return; }
+    if (!st.local) { blocked("Open this page on the shop computer", "First-time setup can only be finished on the computer where the program is installed.", "Go to the ordering page", "/"); return; }
+    show("form"); syncPrinter(); $("shop").focus();
+  }).catch(function () { blocked("Cannot reach the program", "Check that it is running on this computer and reload this page.", "Reload", "/setup"); });
+
+  $("form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var err = $("err"); err.textContent = "";
+    var staff = $("staffPin").value.trim(), admin = $("adminPin").value.trim();
+    if ($("shop").value.trim().length < 2) { err.textContent = "Enter your restaurant name."; $("shop").focus(); return; }
+    if (!PIN.test(staff)) { err.textContent = "The kitchen PIN must be 4 to 20 letters or digits."; $("staffPin").focus(); return; }
+    if (!PIN.test(admin)) { err.textContent = "The owner PIN must be 4 to 20 letters or digits."; $("adminPin").focus(); return; }
+    var g = parseInt($("gst").value, 10), n = parseInt($("tables").value, 10);
+    if (isNaN(n) || n < 1 || n > 50) { err.textContent = "The number of tables must be between 1 and 50."; $("tables").focus(); return; }
+    if (isNaN(g) || g < 0 || g > 28) { err.textContent = "GST must be between 0 and 28 percent."; $("gst").focus(); return; }
+    if (staff === admin) { err.textContent = "The kitchen PIN and the owner PIN must be different."; $("adminPin").focus(); return; }
+    var body = { shop_name: $("shop").value, shop_addr: $("addr").value, gstin: $("gstin").value, printer: $("printer").value,
+      printer_name: $("pname").value, printer_host: $("phost").value, usb_vendor: $("pven").value, usb_product: $("ppro").value,
+      staff_pin: staff, admin_pin: admin, sample_menu: $("sample").checked };
+    var gst = parseInt($("gst").value, 10), tables = parseInt($("tables").value, 10), port = parseInt($("pport").value, 10);
+    if (!isNaN(gst)) body.gst_percent = gst;
+    if (!isNaN(tables)) body.tables = tables;
+    if (!isNaN(port)) body.printer_port = port;
+    body.cols = parseInt($("cols").value, 10);
+    var btn = $("go"); btn.disabled = true; btn.textContent = "Saving...";
+    fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.detail && d.detail.message ? d.detail.message : "Could not save. Please check the details."); return d; }); })
+      .then(function (d) { $("guestUrl").textContent = d.guest_url || "Not found. Connect this computer to your shop network, then restart the program."; show("done"); window.scrollTo(0, 0); })
+      .catch(function (x) { err.textContent = x.message; btn.disabled = false; btn.textContent = "Finish setup"; });
+  });
+})();
+</script>
+</body>
+</html>
